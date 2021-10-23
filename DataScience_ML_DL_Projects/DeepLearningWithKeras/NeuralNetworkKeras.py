@@ -1,6 +1,7 @@
 from numpy import loadtxt
 from keras.models import Sequential
 from keras.layers import Dense
+from tensorflow.python.keras.metrics import accuracy
 
 loadDataSet = loadtxt('pima-indians-diabetes.csv', delimiter=',')
 slicedColumns0to7Index = loadDataSet[:,0:8]
@@ -37,4 +38,30 @@ gives good results in a wide range of problems.
 """
 
 model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+
+"""Training occurs over epochs and each epoch is split into batches.
+
+Epoch: One pass through all of the rows in the training dataset.
+Batch: One or more samples considered by the model within an epoch before weights are updated.
+
+"""
+model.fit(slicedColumns0to7Index, slicedColumn8Index, epochs=150, batch_size=10)
+
+
+"""
+The evaluate() function will return a list with two values. The first will be the loss of the model 
+on the dataset and the second will be the accuracy of the model on the dataset. We are only interested 
+in reporting the accuracy, so we will ignore the loss value.
+"""
+_, accuracy = model.evaluate(slicedColumns0to7Index, slicedColumn8Index)
+print('Accuracy: %.2f' % (accuracy*100))
+
+...
+# make probability predictions with the model
+predictions = model.predict(slicedColumns0to7Index)
+# round predictions 
+rounded = [round(x[0]) for x in predictions]
+...
+# make class predictions with the model
+predictions = (model.predict(slicedColumns0to7Index) > 0.5).astype(int)
 

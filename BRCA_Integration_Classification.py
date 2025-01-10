@@ -2,13 +2,13 @@ import pandas as pd
 from time import sleep
 import math
 
-file_path = "table_class.xlsx"
-sheet_name = "Sheet2"
-df = pd.read_excel(file_path, sheet_name=sheet_name, engine="openpyxl")
+#file_path = "table_class.xlsx"
+#sheet_name = "Sheet2"
+#df = pd.read_excel(file_path, sheet_name=sheet_name, engine="openpyxl")
 
-file_path2 = "table_class2.xlsx"
-sheet_name = "Sheet2"
-df2 = pd.read_excel(file_path2, sheet_name=sheet_name, engine="openpyxl")
+#file_path2 = "table_class2.xlsx"
+#sheet_name = "Sheet2"
+#df2 = pd.read_excel(file_path2, sheet_name=sheet_name, engine="openpyxl")
 
 def count_categories(arrays):
     categories = {

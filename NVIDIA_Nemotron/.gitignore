@@ -1,0 +1,26 @@
+# Python and development environments
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.venv/
+.envs/
+build/
+dist/
+.DS_Store
+
+# Local secrets, site configuration, model files, and generated runs
+.env
+.env.*
+config/hpc.env
+.cache/
+.state/
+models/
+logs/
+results/
+*.sif
+
+# Real study data stay on the HPC; only synthetic examples are tracked
+data/
+inputs/

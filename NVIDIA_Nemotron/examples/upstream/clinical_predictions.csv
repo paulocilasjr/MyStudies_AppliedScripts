@@ -1,0 +1,5 @@
+patient_id,probability,model_id,calibration,decision_threshold
+P48,0.85,clinical-synthetic-v1,unknown,0.5
+P12,0.21,clinical-synthetic-v1,unknown,0.5
+P07,0.66,clinical-synthetic-v1,unknown,0.5
+P29,0.49,clinical-synthetic-v1,unknown,0.5

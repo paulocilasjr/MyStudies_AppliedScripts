@@ -1,0 +1,11 @@
+# Tested release pairing from the official vLLM v0.10.2 requirements:
+# https://github.com/vllm-project/vllm/blob/v0.10.2/requirements/cuda.txt
+# Install with the CUDA 12.8 PyTorch wheel index; no site PyTorch module.
+# Direct dependencies are pinned. The resolved transitive environment is saved
+# as .state/requirements-resolved.txt by the HPC bootstrap.
+vllm==0.10.2
+torch==2.8.0+cu128
+torchaudio==2.8.0+cu128
+torchvision==0.23.0+cu128
+transformers==4.55.2
+huggingface-hub==0.34.4

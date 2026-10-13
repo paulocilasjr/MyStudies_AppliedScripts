@@ -67,6 +67,10 @@ if args[:3] == ['-m', 'pip', 'freeze']:
     print('vllm==0.10.2')
 if args[:3] == ['-m', 'nemotron_copilot', 'doctor']:
     sys.exit(int(os.environ.get('COPILOT_TEST_DOCTOR_STATUS', '0')))
+if args[:3] == ['-m', 'nemotron_copilot', 'experiment']:
+    sys.exit(int(os.environ.get('COPILOT_TEST_EXPERIMENT_STATUS', '0')))
+if args[:3] == ['-m', 'nemotron_copilot', 'verify-run']:
+    sys.exit(int(os.environ.get('COPILOT_TEST_VERIFICATION_STATUS', '0')))
 if args[:3] == ['-m', 'nemotron_copilot', 'prepare-model']:
     snapshot = Path(args[args.index('--cache-dir') + 1]) / 'fake model snapshot'
     snapshot.mkdir(parents=True, exist_ok=True)
@@ -235,6 +239,83 @@ def record(kind):
         self.assertEqual(call["args"][:5], ["-m", "nemotron_copilot", "experiment", "--backend", "mock"])
         self.assertIn("examples/mock_predictions.jsonl", call["args"])
         self.assertEqual(call["offline"], "1")
+
+    def test_gpu_smoke_generates_then_verifies_the_same_synthetic_run(self):
+        self.prepare()
+        previous_count = len(self.calls())
+        result = self.run_runner(
+            "--direct", "--offline", "--smoke", "--output-dir", "smoke output with spaces",
+            "--", "--max-tokens", "300", "--batch-size=4", job_id=99,
+        )
+        self.assert_succeeded(result)
+        calls = [call for call in self.calls()[previous_count:]
+                 if call["args"][:2] == ["-m", "nemotron_copilot"]]
+        self.assertEqual([call["args"][2] for call in calls], ["doctor", "experiment", "verify-run"])
+        for call in calls[1:]:
+            self.assertIn("examples/mock_predictions.jsonl", call["args"])
+            self.assertIn("smoke output with spaces", call["args"])
+            self.assertEqual(call["offline"], "1")
+        self.assertIn("--backend", calls[1]["args"])
+        self.assertIn("vllm", calls[1]["args"])
+        self.assertIn("--require-vllm", calls[2]["args"])
+        self.assertIn("--require-synthetic", calls[2]["args"])
+        self.assertIn("--expected-model-id", calls[2]["args"])
+        self.assertIn("nvidia/Nemotron-Mini-4B-Instruct", calls[2]["args"])
+        self.assertIn("--expected-model-revision", calls[2]["args"])
+        self.assertIn("791833e92ebddb0bc2c1007f6d2b6764f886a2ae", calls[2]["args"])
+        self.assertIn("GPU smoke verification passed", result.stdout)
+
+    def test_gpu_smoke_default_output_distinguishes_real_gpu_acceptance(self):
+        self.prepare()
+        result = self.run_runner("--direct", "--offline", "--smoke", job_id=99)
+        self.assert_succeeded(result)
+        self.assertIn("results/gpu-smoke-99", self.calls()[-1]["args"])
+
+    def test_gpu_smoke_verifier_uses_configured_model_identity(self):
+        revision = "a" * 40
+        (self.project / "config" / "hpc.env").write_text(
+            'HPC_MODEL_ID="approved/example-model"\nHPC_MODEL_REVISION="' + revision + '"\n',
+            encoding="utf-8",
+        )
+        self.prepare()
+        result = self.run_runner("--direct", "--offline", "--smoke", job_id=99)
+        self.assert_succeeded(result)
+        arguments = self.calls()[-1]["args"]
+        self.assertEqual(arguments[arguments.index("--expected-model-id") + 1], "approved/example-model")
+        self.assertEqual(arguments[arguments.index("--expected-model-revision") + 1], revision)
+
+    def test_gpu_smoke_rejects_patient_input_and_hidden_argparse_overrides(self):
+        for arguments in (
+            ("--smoke", "--input", "patient.jsonl"),
+            ("--smoke", "--command", "serve"),
+            ("--smoke", "--prepare-only"),
+            ("--smoke", "--", "--backend", "mock"),
+            ("--smoke", "--", "--inp", "patient.jsonl"),
+            ("--smoke", "--", "--output-dir=other"),
+        ):
+            with self.subTest(arguments=arguments):
+                result = self.run_runner(*arguments)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("--smoke", result.stderr)
+        self.assertEqual(self.calls(), [])
+
+    def test_gpu_smoke_stops_on_experiment_failure_before_verification(self):
+        self.prepare()
+        previous_count = len(self.calls())
+        result = self.run_runner("--direct", "--offline", "--smoke", job_id=99,
+                                 extra_environment={"COPILOT_TEST_EXPERIMENT_STATUS": "2"})
+        self.assertEqual(result.returncode, 2)
+        self.assertFalse(any(call["args"][:3] == ["-m", "nemotron_copilot", "verify-run"]
+                             for call in self.calls()[previous_count:]))
+        self.assertNotIn("GPU smoke verification passed", result.stdout)
+
+    def test_gpu_smoke_propagates_verification_failure(self):
+        self.prepare()
+        result = self.run_runner("--direct", "--offline", "--smoke", job_id=99,
+                                 extra_environment={"COPILOT_TEST_VERIFICATION_STATUS": "2"})
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(self.calls()[-1]["args"][2], "verify-run")
+        self.assertNotIn("GPU smoke verification passed", result.stdout)
 
 
 if __name__ == "__main__":

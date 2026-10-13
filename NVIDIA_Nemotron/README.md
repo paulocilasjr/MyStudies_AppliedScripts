@@ -4,6 +4,8 @@ This is Paulo's interpretive layer for the hackathon. It accepts clinical, multi
 
 The local GPU backend uses NVIDIA's `Nemotron-Mini-4B-Instruct` weights through vLLM. NVIDIA describes this general-purpose model for roleplaying, retrieval-augmented generation, and function calling; this repository does not establish clinical validity. See the [NVIDIA model card](https://huggingface.co/nvidia/Nemotron-Mini-4B-Instruct). The implementation is a local vLLM deployment; NVIDIA NIM is a separate serving product.
 
+The input is **predictions already produced by the clinical/mIF/fusion models**, plus patient evidence and context. This component does not train those predictors or calculate predictions directly from raw clinical tables, slides, or images. The response endpoint remains undecided.
+
 ## Run the local demonstration
 
 From this folder, with Python 3.11 or newer:
@@ -19,19 +21,35 @@ The runner uses your existing Python and executes a deterministic `mock` experim
 Copy this folder to the approved HPC project location, for example under `/share/lab_goecks/Alyssa/Markowitz/feb2026/`, then run from the copied folder:
 
 ```bash
-bash run_hpc.sh
+bash run_hpc.sh --smoke
 ```
 
 The runner submits a SLURM job on the `red` partition with one A30 GPU, creates an isolated Python environment, prepares the pinned public model snapshot, and executes the synthetic experiment. First-time setup needs access to package and model repositories. Later inference uses the local model files with offline settings. Patient inputs are not sent to a hosted inference API.
+
+`--smoke` then writes `verification.json` and requires every synthetic narrative to come from real vLLM generation and pass the implemented screen. A mock backend, injected test generator, changed scores, or any fallback narrative fails this acceptance check. Results remain available for diagnosis. Passing the check verifies execution and interfaces; it does not certify clinical correctness. Submission prints a job ID and returns before the GPU job finishes.
 
 If compute nodes cannot download packages or weights, prepare on an approved internet-connected login node first:
 
 ```bash
 bash run_hpc.sh --prepare-only
-bash run_hpc.sh --offline
+bash run_hpc.sh --smoke --offline
 ```
 
 See [HPC setup and operation](docs/hpc.md) for site configuration, offline staging, driver compatibility, and diagnosing failures. The local computer cannot verify SLURM submission, the site's installed GPU driver, or a real A30 model load; the first HPC run completes that verification.
+
+For a clean transfer, `python3 scripts/package_hpc.py` produces a code-and-synthetic-fixture archive under `dist/`, excluding local inputs, runs, caches and environments. The [first-run terminal guide](docs/first_hpc_smoke.md) includes transfer, extraction, setup/submission, job monitoring, acceptance, and UI export commands.
+
+## Feed the existing melanoma demo UI
+
+[Junhao's Streamlit UI](https://github.com/qchiujunhao/melanoma-demo-ui) reads a prediction CSV and a JSON dictionary of narrative strings. It does not directly load the copilot JSONL or call the copilot API. After a completed run, export its files:
+
+```bash
+PYTHONPATH=src python -m nemotron_copilot export-ui \
+  --run-dir results/gpu-smoke-JOBID \
+  --output-dir results/ui-smoke-JOBID
+```
+
+Replace `JOBID` with the submitted job number. The exporter preserves structured results alongside the UI files, carries review/source/quality/limitations into the displayed narrative, and records exclusions. The current UI requires all three scores and fixes its display threshold at 0.5: clinical-only patients are excluded from its prediction CSV, and incompatible or missing supplied thresholds cause export to fail. No missing score, label, global importance, or image is invented. See the [UI compatibility guide](docs/demo_ui.md) for the exact file layout, optional label export, launch command, and UI changes still needed for the full cohort.
 
 ## Connect the prediction models
 

@@ -14,6 +14,30 @@ bash run_hpc.sh
 
 The submission command prints the SLURM job identifier; returning from submission does not mean the experiment has completed. Check the corresponding `logs/slurm-<jobid>.out` and `.err` files. Default experiment results are saved under `results/hpc-<jobid>/`.
 
+## Run synthetic patients through the real GPU model
+
+The synthetic fixture is mock **input data**. The following command uses the real vLLM/Nemotron backend, downloads the pinned public model when needed, generates narratives on the allocated A30, and verifies the completed run:
+
+```bash
+bash run_hpc.sh --smoke
+```
+
+Default smoke results are written to `results/gpu-smoke-<jobid>/`. The final `verify-run` step checks input identity, patient counts and IDs, unchanged scores and modality availability, review flags, source metadata, and synthetic-data declarations. It requires the real vLLM backend and all four synthetic records to have `narrative_source="vllm"` with `quality.status="passed"`. Any fallback, injected test generator, or mock result fails this strict acceptance gate. The report records `all_generated_narratives_accepted`. Every narrative still requires human review; verification does not establish clinical correctness.
+
+Smoke verification also requires the recorded model ID and revision to match `HPC_MODEL_ID` and `HPC_MODEL_REVISION`. At defaults, these identify the pinned Nemotron snapshot above. A custom `--model-path` must contain matching preparation metadata; an unrecorded or mismatched snapshot cannot pass the verified smoke test. Ordinary experiments can still use local directories with unrecorded revision metadata. Manifest matching checks the recorded identity, not cryptographic hashes of every weight file.
+
+Verification writes `verification.json` into the completed run directory. If inference completes but acceptance fails, the published artifacts remain for diagnosis and the SLURM job exits nonzero. Look for `GPU smoke verification passed` in stdout and inspect the verification report. Submission success, a doctor pass, and coherent deterministic fallback text each provide less evidence than this completed smoke run.
+
+Use a fresh output path for every attempt:
+
+```bash
+bash run_hpc.sh --smoke --offline --output-dir results/gpu-smoke-001
+```
+
+Smoke mode uses only `examples/mock_predictions.jsonl`; it rejects `--input`, `--prepare-only`, non-experiment commands, and hidden backend/input/output/model overrides after `--`. The runner's `--model-path` and `--output-dir` controls remain available. Generation options such as `-- --max-tokens 300` can be forwarded. Use a normal experiment with `--input` for the eventual team records.
+
+The local command `bash scripts/run_local.sh` remains a deterministic CPU/mock test and does not load or download Nemotron.
+
 Use a specific input and output location when integrating team predictions:
 
 ```bash
@@ -38,6 +62,8 @@ Then submit the experiment with network-dependent preparation disabled:
 bash run_hpc.sh --offline
 ```
 
+For the verified real-model smoke test after this preparation, submit `bash run_hpc.sh --smoke --offline`. The environment and cache must reside on a filesystem visible to both the preparation node and the GPU node.
+
 `--offline` requires a prepared environment and complete local model snapshot. It fails with a diagnostic if either is missing. All real-model inference loads the local path with offline settings, including inference performed after normal preparation. There is no hosted LLM fallback.
 
 Runner files stay relative to the copied repository by default:
@@ -57,6 +83,8 @@ bash run_hpc.sh --offline --model-path /approved/local/model/snapshot
 ```
 
 A local snapshot must contain the tokenizer, configuration, and weight files. Copying an isolated model weight file is insufficient. Avoid a symlink-based Hugging Face snapshot whose backing `blobs/` directory was left behind during transfer.
+
+The selected checkpoint alone is about 8.4 GB. The isolated Python environment, CUDA/PyTorch dependencies, package caches and temporary downloads require additional storage; confirm sufficient quota on the shared filesystem before preparation. A laptop-created macOS conda environment cannot be copied as the Linux GPU environment.
 
 ## Configure the site
 
@@ -79,6 +107,14 @@ bash run_hpc.sh --command doctor
 ```
 
 The doctor command reports the environment and device state. It does not substitute for an actual model-generation experiment.
+
+Doctor checks total device memory rather than available memory and does not initialize the model, chat template, guided decoding, or complete KV cache. The real smoke experiment must qualify those paths on the allocated node. If the driver or host runtime is incompatible, involve the HPC team rather than changing pins until imports happen to succeed.
+
+## Access required to execute on Moffitt
+
+Execution needs an authenticated, site-approved login connection, any required VPN/MFA or jump host, the shared destination directory and write permission, and any SLURM account/QOS required to request `red`/A30 resources. Public package/model access must be available on the preparation node, or the site must provide an approved prepopulated environment/cache. The login and GPU hosts must meet the selected Linux/glibc/runtime requirements.
+
+No password, private key, or MFA code belongs in this repository. Authentication is completed through the site's normal client/session. Until that connection and allocation are available, local mocked scheduler tests cannot establish that the HPC model has loaded or generated text.
 
 ## Use an already allocated GPU session
 

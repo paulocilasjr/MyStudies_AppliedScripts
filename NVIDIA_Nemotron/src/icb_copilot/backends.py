@@ -51,12 +51,17 @@ class VLLMBackend:
         self.settings = {"max_tokens": max_tokens, "max_model_len": max_model_len,
                          "gpu_memory_utilization": gpu_memory_utilization, "seed": seed, "temperature": temperature}
         self._llm = None
+        self._generation_calls = 0
+        self._generated_records = 0
 
     @property
     def metadata(self) -> dict:
         manifest_path = self.path / "copilot_model_manifest.json"
         manifest = json.loads(manifest_path.read_text()) if manifest_path.exists() else {"revision": "unrecorded"}
-        return {"backend": "vllm", "model_path": str(self.path), "model": manifest, "settings": self.settings}
+        return {"backend": "vllm", "model_path": str(self.path), "model": manifest, "settings": self.settings,
+                "execution": {"model_loaded": self._llm is not None,
+                              "generation_calls": self._generation_calls,
+                              "generated_records": self._generated_records}}
 
     def _load(self):
         if self._llm is None:
@@ -86,4 +91,9 @@ class VLLMBackend:
         sampling = SamplingParams(temperature=self.settings["temperature"], max_tokens=self.settings["max_tokens"],
                                   seed=self.settings["seed"], guided_decoding=GuidedDecodingParams(json=output_schema))
         outputs = llm.generate(prompts, sampling, use_tqdm=False)
-        return [output.outputs[0].text.strip() for output in outputs]
+        texts = [output.outputs[0].text.strip() for output in outputs]
+        if len(texts) != len(conversations):
+            raise RuntimeError("backend output count does not match input count")
+        self._generation_calls += 1
+        self._generated_records += len(texts)
+        return texts

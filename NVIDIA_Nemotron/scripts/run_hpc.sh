@@ -13,6 +13,7 @@ Usage: bash run_hpc.sh [RUNNER_OPTIONS] [-- CLI_OPTIONS]
   --prepare-only      Prepare public packages/weights here; no GPU job or inputs.
   --offline           Require a prepared environment and local weights.
   --direct            Run here inside an existing SLURM GPU allocation.
+  --smoke             Run bundled synthetic patients with real vLLM, then verify.
   --command COMMAND   experiment (default), serve, or doctor.
   --model-path DIR    Use an existing local model snapshot; skip model download.
   --input PATH        Experiment inputs (default synthetic example).
@@ -64,6 +65,8 @@ HPC_QOS="${HPC_QOS:-}"
 COPILOT_PREPARE_ONLY=0
 COPILOT_OFFLINE=0
 COPILOT_DIRECT=0
+COPILOT_SMOKE=0
+COPILOT_CUSTOM_INPUT=0
 COPILOT_COMMAND=experiment
 COPILOT_MODEL_PATH="${HPC_MODEL_PATH:-}"
 COPILOT_INPUT="examples/mock_predictions.jsonl"
@@ -76,9 +79,10 @@ while [[ $# -gt 0 ]]; do
         --prepare-only) COPILOT_PREPARE_ONLY=1; shift ;;
         --offline) COPILOT_OFFLINE=1; shift ;;
         --direct) COPILOT_DIRECT=1; shift ;;
+        --smoke) COPILOT_SMOKE=1; shift ;;
         --command) need_value "$@"; COPILOT_COMMAND="$2"; shift 2 ;;
         --model-path) need_value "$@"; COPILOT_MODEL_PATH="$2"; shift 2 ;;
-        --input) need_value "$@"; COPILOT_INPUT="$2"; shift 2 ;;
+        --input) need_value "$@"; COPILOT_INPUT="$2"; COPILOT_CUSTOM_INPUT=1; shift 2 ;;
         --output-dir) need_value "$@"; COPILOT_OUTPUT="$2"; shift 2 ;;
         --) shift; COPILOT_EXTRA=("$@"); break ;;
         -h|--help) usage; exit 0 ;;
@@ -86,6 +90,25 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 case "$COPILOT_COMMAND" in experiment|serve|doctor) ;; *) die "Unsupported command: $COPILOT_COMMAND" ;; esac
+if [[ "$COPILOT_SMOKE" == 1 ]]; then
+    [[ "$COPILOT_COMMAND" == experiment && "$COPILOT_PREPARE_ONLY" == 0 ]] || die "--smoke runs an experiment; use --prepare-only separately."
+    [[ "$COPILOT_CUSTOM_INPUT" == 0 ]] || die "--smoke uses the bundled synthetic fixture; omit --input. Use a normal experiment for supplied patient records."
+    # Verify exactly the experiment run we launched. Accept only complete
+    # generation-setting names, including --name=value; argparse abbreviations
+    # must not secretly override the synthetic input, backend or output path.
+    COPILOT_SMOKE_INDEX=0
+    while (( COPILOT_SMOKE_INDEX < ${#COPILOT_EXTRA[@]} )); do
+        COPILOT_OPTION="${COPILOT_EXTRA[$COPILOT_SMOKE_INDEX]}"
+        case "$COPILOT_OPTION" in
+            --max-tokens|--max-model-len|--gpu-memory-utilization|--seed|--temperature|--disagreement-threshold|--batch-size)
+                (( COPILOT_SMOKE_INDEX + 1 < ${#COPILOT_EXTRA[@]} )) || die "Missing smoke generation value for $COPILOT_OPTION"
+                COPILOT_SMOKE_INDEX=$((COPILOT_SMOKE_INDEX + 2)) ;;
+            --max-tokens=*|--max-model-len=*|--gpu-memory-utilization=*|--seed=*|--temperature=*|--disagreement-threshold=*|--batch-size=*)
+                COPILOT_SMOKE_INDEX=$((COPILOT_SMOKE_INDEX + 1)) ;;
+            *) die "--smoke does not allow forwarded $COPILOT_OPTION; use full generation-setting names or the runner's --model-path/--output-dir controls." ;;
+        esac
+    done
+fi
 
 if [[ "$COPILOT_PREPARE_ONLY" == 0 && "$COPILOT_DIRECT" == 0 && -z "${SLURM_JOB_ID:-}" ]]; then
     command -v sbatch >/dev/null || die "sbatch unavailable. Run on HPC; use scripts/run_local.sh for the laptop smoke test."
@@ -236,7 +259,26 @@ if [[ "$COPILOT_PREPARE_ONLY" == 1 ]]; then
 fi
 COPILOT_ARGS=(--backend vllm --model-path "$COPILOT_MODEL_PATH")
 if [[ "$COPILOT_COMMAND" == experiment ]]; then
-    [[ -n "$COPILOT_OUTPUT" ]] || COPILOT_OUTPUT="results/hpc-${SLURM_JOB_ID}"
+    if [[ -z "$COPILOT_OUTPUT" ]]; then
+        if [[ "$COPILOT_SMOKE" == 1 ]]; then
+            COPILOT_OUTPUT="results/gpu-smoke-${SLURM_JOB_ID}"
+        else
+            COPILOT_OUTPUT="results/hpc-${SLURM_JOB_ID}"
+        fi
+    fi
     COPILOT_ARGS+=(--input "$COPILOT_INPUT" --output-dir "$COPILOT_OUTPUT")
+fi
+if [[ "$COPILOT_SMOKE" == 1 ]]; then
+    printf 'GPU smoke: real vLLM generation using bundled synthetic patient records.\n'
+    "$COPILOT_PYTHON" -m nemotron_copilot experiment "${COPILOT_ARGS[@]}" ${COPILOT_EXTRA[@]+"${COPILOT_EXTRA[@]}"}
+    # Artifacts from a completed experiment remain available for diagnosis if
+    # all generated prose falls back or any acceptance invariant fails.
+    "$COPILOT_PYTHON" -m nemotron_copilot verify-run \
+        --input "$COPILOT_INPUT" --output-dir "$COPILOT_OUTPUT" \
+        --require-vllm --require-synthetic \
+        --expected-model-id "$HPC_MODEL_ID" \
+        --expected-model-revision "$HPC_MODEL_REVISION"
+    printf 'GPU smoke verification passed. Results: %s\n' "$(absolute_path "$COPILOT_OUTPUT")"
+    exit 0
 fi
 exec "$COPILOT_PYTHON" -m nemotron_copilot "$COPILOT_COMMAND" "${COPILOT_ARGS[@]}" ${COPILOT_EXTRA[@]+"${COPILOT_EXTRA[@]}"}

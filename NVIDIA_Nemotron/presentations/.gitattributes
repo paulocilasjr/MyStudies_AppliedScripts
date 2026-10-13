@@ -1,0 +1,4 @@
+# Presentation assets must retain their original bytes on every platform.
+*.pdf binary
+*.pptx binary
+*.png binary

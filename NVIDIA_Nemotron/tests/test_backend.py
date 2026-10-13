@@ -56,9 +56,11 @@ class BackendTests(unittest.TestCase):
             (root / "config.json").write_text("{}", encoding="utf-8")
             adapter = VLLMBackend(str(root), seed=123)
             self.assertFalse(calls, "constructing an adapter must not allocate a GPU")
+            self.assertEqual(adapter.metadata["execution"], {"model_loaded": False, "generation_calls": 0, "generated_records": 0})
             conversations = [build_messages(prediction())]
             first = adapter.generate(conversations)
             second = adapter.generate(conversations)
+            self.assertEqual(adapter.metadata["execution"], {"model_loaded": True, "generation_calls": 2, "generated_records": 2})
             self.assertEqual(first, second)
             self.assertEqual(first, ['{"interpretation":"Synthetic response"}'])
             self.assertEqual(len([call for call in calls if call[0] == "load"]), 1)

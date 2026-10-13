@@ -12,6 +12,7 @@ from .experiment import run_experiment
 from .io import assemble_predictions, load_jsonl, write_jsonl
 from .models import doctor, prepare_model
 from .server import create_server
+from .verify import verify_run
 
 
 def _inference_arguments(parser):
@@ -39,6 +40,17 @@ def parser() -> argparse.ArgumentParser:
     experiment.add_argument("--input", required=True, help="canonical patient JSONL")
     experiment.add_argument("--output-dir", required=True, help="new or empty directory; existing runs are protected")
     experiment.add_argument("--batch-size", type=int, default=8)
+    verify = commands.add_parser("verify-run", help="check completed artifacts and optionally require accepted real-model output")
+    verify.add_argument("--input", required=True)
+    verify.add_argument("--output-dir", required=True)
+    verify.add_argument("--require-vllm", action="store_true")
+    verify.add_argument("--require-synthetic", action="store_true")
+    verify.add_argument("--expected-model-id")
+    verify.add_argument("--expected-model-revision")
+    export = commands.add_parser("export-ui", help="export the file contract used by melanoma-demo-ui")
+    export.add_argument("--run-dir", required=True)
+    export.add_argument("--output-dir", required=True)
+    export.add_argument("--input", help="optional original canonical input, hash-checked before exporting eligible ground truth")
     validate = commands.add_parser("validate", help="validate JSONL without loading any model")
     validate.add_argument("--input", required=True)
     assemble = commands.add_parser("assemble", help="join team prediction CSVs by canonical patient ID")
@@ -88,6 +100,16 @@ def main(argv=None) -> int:
             manifest = run_experiment(args.input, args.output_dir, _copilot(args), batch_size=args.batch_size)
             print(json.dumps({"patient_count": manifest["patient_count"], "backend": args.backend,
                               "output_dir": str(Path(args.output_dir).resolve()), "source_counts": manifest["source_counts"]}))
+        elif args.command == "verify-run":
+            report = verify_run(args.input, args.output_dir, require_vllm=args.require_vllm,
+                                require_synthetic=args.require_synthetic, expected_model_id=args.expected_model_id,
+                                expected_model_revision=args.expected_model_revision)
+            print(json.dumps(report, indent=2))
+            return 0 if report["ok"] else 1
+        elif args.command == "export-ui":
+            from .ui_export import export_ui_bundle
+            report = export_ui_bundle(args.run_dir, args.output_dir, canonical_input=args.input)
+            print(json.dumps(report, indent=2))
         elif args.command == "serve":
             server = create_server(_copilot(args), args.host, args.port)
             print(f"Local {args.backend} copilot API: http://{server.server_address[0]}:{server.server_address[1]}", flush=True)

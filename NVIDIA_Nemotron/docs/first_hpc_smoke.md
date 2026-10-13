@@ -6,17 +6,17 @@ The local CPU mock tests the data plumbing. This procedure downloads and runs th
 
 From the local project, `python3 scripts/package_hpc.py` creates `dist/nemotron-hpc-smoke.tar.gz` and its SHA-256 file. The package contains source, tests, documentation and explicitly named synthetic fixtures. It excludes patient inputs, generated results, site settings, credentials, environments and model caches.
 
-Transfer both files through your existing authenticated HPC workflow to an approved shared location. For example, from your own Mac terminal with working SSH:
+Transfer both files through your existing authenticated HPC workflow to an approved shared location. Set `HPC_USER` and `HPC_HOST` for your existing login. The example uses a relative `copilot-upload` directory that must already exist in approved shared storage under the remote login working directory. Adjust that relative destination for the site. From a terminal with working SSH:
 
 ```bash
 scp dist/nemotron-hpc-smoke.tar.gz dist/nemotron-hpc-smoke.tar.gz.sha256 \
-  4475918@red.moffitt.org:/share/lab_goecks/Alyssa/Markowitz/feb2026/
+  "${HPC_USER}@${HPC_HOST}:copilot-upload/"
 ```
 
 In the HPC terminal, extract into a new directory to preserve any previous checkout:
 
 ```bash
-cd /share/lab_goecks/Alyssa/Markowitz/feb2026
+cd copilot-upload
 sha256sum --check nemotron-hpc-smoke.tar.gz.sha256
 mkdir copilot-smoke-001
 tar -xzf nemotron-hpc-smoke.tar.gz -C copilot-smoke-001
@@ -57,7 +57,7 @@ cat "results/gpu-smoke-${COPILOT_JOB_ID}/manifest.json"
 
 Acceptance requires `ok: true`, the configured model ID/revision, recorded native vLLM execution, four patients, unchanged supplied evidence and scores, complete artifacts, and `source_counts: {"vllm": 4}`. All four narratives must pass the implemented screen. Any fallback makes smoke acceptance fail while keeping completed experiment artifacts for diagnosis. An initialization/generation failure may leave only the SLURM logs.
 
-`narratives.jsonl` contains one full JSON object per patient with predictions, feature evidence, clinical context, interpretation text, comparison, limitations, review status, quality and provenance. It preserves the clinical-only patient as well as the three complete multimodal cases. Screening and execution acceptance do not verify clinical correctness.
+`generation_review.jsonl` preserves raw model replies and screen reasons for prompt inspection. `narratives.jsonl` contains one full JSON object per patient with predictions, feature evidence, clinical context, interpretation text, comparison, limitations, review status, quality and provenance. It preserves the clinical-only patient as well as the three complete multimodal cases. Screening and execution acceptance do not verify clinical correctness.
 
 ## Export for Junhao's current UI
 
@@ -71,6 +71,6 @@ PYTHONPATH=src .envs/nemotron-vllm/bin/python -m nemotron_copilot export-ui \
 
 With a custom environment prefix, use its Python executable instead. The UI bundle contains a prediction CSV for the three complete cases and `narratives.json` mapping those IDs to narrative text. Labels remain blank for these synthetic inputs. The clinical-only case remains in the complete structured sidecar and is listed as excluded from the current UI, which requires all three scores. [UI integration](demo_ui.md) explains the exact directory layout and launch command.
 
-## Readiness at handoff
+## Qualification remaining
 
-The local synthetic pipeline, output contract, compatibility exporter and automated tests have been checked. The audited UI loader accepts the exported file contract. Actual Streamlit rendering and an HPC model download/load/generation have not been executed from this workspace. The configured SSH host was reachable but noninteractive authentication was rejected; this runbook supports the requested execution in your existing HPC terminal.
+Local tests, six-case tokenizer budgets, mock generation/export, and the Streamlit file contract have been checked. The packaged task skill is loaded in source and installed-wheel execution. GPU model loading, generation quality, and scheduler/site compatibility remain to be checked in the authenticated HPC session. Follow [prompt_review.md](prompt_review.md) for the expanded six-case qualification after the initial smoke test.

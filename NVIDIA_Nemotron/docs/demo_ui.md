@@ -72,25 +72,25 @@ After a real synthetic-input HPC experiment, run the same export command on its 
 
 ## Launch the viewer with a fresh bundle
 
-The audited [UI README](https://github.com/qchiujunhao/melanoma-demo-ui/blob/59b7f0f3f864aef3a5d95ca9af4c2acfdb928a7f/README.md) launches the app from its repository root with `streamlit run src/app.py --server.port 8501`, after creating a Python 3.11+ environment and installing `requirements.txt`. Its tracked [Streamlit configuration](https://github.com/qchiujunhao/melanoma-demo-ui/blob/59b7f0f3f864aef3a5d95ca9af4c2acfdb928a7f/.streamlit/config.toml) binds loopback and disables browser usage statistics. The example below makes the loopback address explicit.
+The original contract was audited against the [UI README](https://github.com/qchiujunhao/melanoma-demo-ui/blob/59b7f0f3f864aef3a5d95ca9af4c2acfdb928a7f/README.md) launches the app from its repository root with `streamlit run src/app.py --server.port 8501`, after creating a Python 3.11+ environment and installing `requirements.txt`. Its tracked [Streamlit configuration](https://github.com/qchiujunhao/melanoma-demo-ui/blob/59b7f0f3f864aef3a5d95ca9af4c2acfdb928a7f/.streamlit/config.toml) binds loopback and disables browser usage statistics. The example below makes the loopback address explicit.
 
-Use a **fresh local checkout** on approved storage and a separate UI environment. Replace the `/approved/local/` paths with the actual checkout location and the completed bundle produced by `export-ui`:
+Use a **fresh local checkout** on approved storage and a separate UI environment. Place the completed bundle next to the checkout as `copilot-ui-bundle`, or adjust the relative source path below:
 
 ```bash
 umask 077
-git clone https://github.com/qchiujunhao/melanoma-demo-ui.git /approved/local/melanoma-demo-ui-fresh
-cd /approved/local/melanoma-demo-ui-fresh
-git checkout --detach 59b7f0f3f864aef3a5d95ca9af4c2acfdb928a7f
+git clone https://github.com/qchiujunhao/melanoma-demo-ui.git melanoma-demo-ui-fresh
+cd melanoma-demo-ui-fresh
+git checkout --detach 4306ad74eb3bfa6ed0bb330a397dd6b5cd40fbed
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install -r requirements.txt
-python -c "import shutil; shutil.copytree('/approved/local/copilot-ui-bundle', 'results/predictions')"
+python -c "import shutil; shutil.copytree('../copilot-ui-bundle', 'results/predictions')"
 streamlit run src/app.py --server.port 8501 --server.address 127.0.0.1
 ```
 
-`copytree` deliberately fails if `results/predictions/` already exists. Use a fresh checkout or deliberately review/archive the prior local bundle before another copy; do not merge new files into an old predictions directory. This prevents stale optional `feature_importances.json` or `tile_predictions.csv` from remaining visible when the new copilot bundle does not supply them. In particular, do not copy the UI's unrelated `demo_data/` fixtures into the copilot bundle or the real-output directory.
+`copytree` deliberately fails if `results/predictions/` already exists. Use a fresh checkout or deliberately review/archive the prior local bundle before another copy; do not merge new files into an old predictions directory. This prevents stale optional `feature_importances.json` or `tile_predictions.csv` from remaining visible when the new copilot bundle does not supply them. In particular, do not copy the UI's unrelated `demo_data/` fixtures into the copilot bundle or the output directory.
 
-Open the local address printed by Streamlit, select **Real model outputs**, and click **Reload files**. The app initially selects **Synthetic demo**, so it will otherwise continue showing its own 19 fixtures. For this repository's mock export, the “real” source toggle only selects the local file directory; the narrative text still identifies the scores/summary as a mock demonstration. Missing global importance and tile panels should remain empty.
+Open the local address printed by Streamlit, select **Local output files**, and click **Reload files**. The app initially selects **Synthetic demo**, so it will otherwise continue showing its own 19 fixtures. The file source toggle only selects the local directory; the narrative text still identifies the scores/summary as a mock demonstration. Missing global importance and tile panels should remain empty.
 
 On the HPC, run the UI in the approved compute environment and use the site's approved tunnel/access arrangement. A loopback binding does not make a remote compute-node port directly reachable from the presentation computer. Public source/package preparation and local file copying do not upload the bundle to GitHub; this workflow leaves the external repository unchanged.
 
@@ -101,7 +101,7 @@ The current app reads only its local `demo_data/` or `results/predictions/` dire
 - **Missing modalities:** the viewer rejects incomplete score rows. It needs a schema/layout change to display the clinical-only cohort.
 - **Thresholds:** it always classifies at 0.50, independently of upstream model metadata. Strict export rejects incompatible thresholds instead of silently redefining classifications.
 - **Calibration:** cards are labeled `P(response)` even for uncalibrated scores. Narrative disclosure is useful, but the UI should ultimately display calibration status and use appropriate score language.
-- **Source and review:** the real-mode caption generically says “Pre-generated text from the Nemotron integration.” It does not distinguish mock, fallback, injected tests, or screen issues; exported text supplies that distinction.
+- **Source and review:** the viewer displays a generic pre-generated narrative caption. Exported text distinguishes mock, fallback, and screened model outputs; the viewer does not yet expose structured quality metadata.
 - **Patient evidence:** existing importance panels are global. They do not display the patient's full clinical context, measured values, signed attributions, or model/feature provenance from the structured sidecar.
 - **ROC grouping/provenance:** the viewer uses every row with a known label, without checking endpoint/partition metadata. The adapter restricts exported labels, but producers still need to verify split independence.
 - **Display precision:** percentage cards round to one decimal percent. Classification uses the unrounded CSV score, so near-threshold values can look tied; the narrative retains full precision for review.

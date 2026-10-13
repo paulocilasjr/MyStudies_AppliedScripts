@@ -45,8 +45,9 @@ def run_experiment(input_path: str | Path, output_dir: str | Path, copilot: Copi
     input_snapshot = source.read_bytes()
     patients = parse_jsonl(input_snapshot.decode("utf-8-sig"))
     results = []
+    generation_review = []
     for index in range(0, len(patients), batch_size):
-        results.extend(copilot.interpret_many(patients[index:index + batch_size]))
+        results.extend(copilot.interpret_many(patients[index:index + batch_size], generation_review=generation_review))
     metrics = evaluate_predictions(patients)
     versions = {}
     for package in ("vllm", "torch", "transformers", "huggingface-hub"):
@@ -62,13 +63,14 @@ def run_experiment(input_path: str | Path, output_dir: str | Path, copilot: Copi
                 "source_counts": dict(Counter(r["narrative_source"] for r in results)),
                 "quality_counts": dict(Counter(r["quality"]["status"] for r in results)),
                 "review_required": True, "response_definitions": sorted({p.data["response_definition"] for p in patients}),
-                "artifacts": ["narratives.jsonl", "narratives.csv", "report.md", "manifest.json", "metrics.json"]}
+                "artifacts": ["narratives.jsonl", "narratives.csv", "report.md", "manifest.json", "metrics.json", "generation_review.jsonl"]}
     output.parent.mkdir(parents=True, exist_ok=True)
     # Stage artifacts next to the destination; inference failure never produces a
     # partial directory that the UI could mistake for a completed experiment.
     with tempfile.TemporaryDirectory(prefix=".copilot-run-", dir=output.parent) as temporary:
         staging = Path(temporary)
         write_jsonl(staging / "narratives.jsonl", results)
+        write_jsonl(staging / "generation_review.jsonl", generation_review)
         _json(staging / "manifest.json", manifest)
         _json(staging / "metrics.json", metrics)
         with (staging / "narratives.csv").open("w", encoding="utf-8", newline="") as handle:

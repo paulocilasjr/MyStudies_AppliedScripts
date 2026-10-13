@@ -23,7 +23,7 @@ The runner purges site modules by default and loads the Python distribution modu
 
 Doctor checks compatibility and a small CUDA allocation. It does **not** load the model, validate its chat template, initialize guided decoding, reserve its full inference memory, or generate a narrative. Total GPU memory is checked, not guaranteed free memory at inference time.
 
-Sources: [requirements-vllm.txt](/Users/4475918/Projects/temp/MyStudies_AppliedScripts/NVIDIA_Nemotron/requirements-vllm.txt), [models.py](/Users/4475918/Projects/temp/MyStudies_AppliedScripts/NVIDIA_Nemotron/src/icb_copilot/models.py:48), [run_hpc.sh](/Users/4475918/Projects/temp/MyStudies_AppliedScripts/NVIDIA_Nemotron/scripts/run_hpc.sh), and [hpc.env.example](/Users/4475918/Projects/temp/MyStudies_AppliedScripts/NVIDIA_Nemotron/config/hpc.env.example).
+Sources: [requirements-vllm.txt](../requirements-vllm.txt), [models.py](../src/icb_copilot/models.py#L48), [run_hpc.sh](../scripts/run_hpc.sh), and [hpc.env.example](../config/hpc.env.example).
 
 ## 2. Public preparation and offline patient inference
 
@@ -65,7 +65,7 @@ The setup fingerprint covers the requirements file, Python version, module, and 
 
 Every experiment/service run uses a local model path with `HF_HUB_OFFLINE=1`, `TRANSFORMERS_OFFLINE=1`, telemetry opt-outs, and `trust_remote_code=False`. The selected code path does not call a hosted LLM API. These are **application and library settings**, not a firewall, network namespace, or network-egress guarantee. Real patient storage, node access, and any site-level isolation remain the HPC deployment's responsibility.
 
-Source: [run_hpc.sh](/Users/4475918/Projects/temp/MyStudies_AppliedScripts/NVIDIA_Nemotron/scripts/run_hpc.sh:151), [prepare_model](/Users/4475918/Projects/temp/MyStudies_AppliedScripts/NVIDIA_Nemotron/src/icb_copilot/models.py:17), and [VLLMBackend](/Users/4475918/Projects/temp/MyStudies_AppliedScripts/NVIDIA_Nemotron/src/icb_copilot/backends.py:40).
+Source: [run_hpc.sh](../scripts/run_hpc.sh#L151), [prepare_model](../src/icb_copilot/models.py#L17), and [VLLMBackend](../src/icb_copilot/backends.py#L40).
 
 ## 3. Input contract, join semantics, and limits
 
@@ -99,7 +99,7 @@ The context sidecar supplies `patient_id` plus optional canonical context/featur
 
 Measurement direction does not imply a model effect. An attribution must describe the responder-class effect in the producer's declared scale, for example log odds; the harness checks field shape, not whether a claimed SHAP method/scale or biological meaning is correct. It does not verify reference ranges, response-label definitions, calibration claims, slide aggregation, fold membership, training leakage, or feature provenance.
 
-Sources: [schema.py](/Users/4475918/Projects/temp/MyStudies_AppliedScripts/NVIDIA_Nemotron/src/icb_copilot/schema.py:76) and [io.py](/Users/4475918/Projects/temp/MyStudies_AppliedScripts/NVIDIA_Nemotron/src/icb_copilot/io.py:44).
+Sources: [schema.py](../src/icb_copilot/schema.py#L76) and [io.py](../src/icb_copilot/io.py#L44).
 
 ## 4. Generation harness and execution budgets
 
@@ -154,7 +154,7 @@ The schema requires `interpretation` and disallows additional properties. It con
 
 The factual prefix is assembled by Python from supplied scores and at most two features per modality. Scores appear to three decimal places; signed attribution values use three significant digits; long feature values are abbreviated in prose. Full normalized predictions, features, and context remain in the structured result. The LLM is asked not to reproduce numbers, demographics, feature names with digits, or patient identifiers. This reduces generated numeric claims; it does not verify upstream facts or all possible claims expressed in words.
 
-Sources: [build_messages / VLLMBackend](/Users/4475918/Projects/temp/MyStudies_AppliedScripts/NVIDIA_Nemotron/src/icb_copilot/backends.py:30), [Copilot](/Users/4475918/Projects/temp/MyStudies_AppliedScripts/NVIDIA_Nemotron/src/icb_copilot/copilot.py:124), and [CLI settings](/Users/4475918/Projects/temp/MyStudies_AppliedScripts/NVIDIA_Nemotron/src/icb_copilot/cli.py:17).
+Sources: [build_messages / VLLMBackend](../src/icb_copilot/backends.py#L30), [Copilot](../src/icb_copilot/copilot.py#L124), and [CLI settings](../src/icb_copilot/cli.py#L17).
 
 ## 5. Quality states and failure classifications
 
@@ -179,7 +179,7 @@ Every successful result has `review_required=true`, independently of source/qual
 | HTTP unknown endpoint / wrong content type / oversized body | 404 / 415 / 413 respectively. |
 | HPC setup, doctor, download, or environment-fingerprint failure | Runner stops; inspect SLURM logs. Patient experiment output is not published as a complete run. |
 
-Sources: [screen_narrative](/Users/4475918/Projects/temp/MyStudies_AppliedScripts/NVIDIA_Nemotron/src/icb_copilot/copilot.py:89), [summarize_evidence](/Users/4475918/Projects/temp/MyStudies_AppliedScripts/NVIDIA_Nemotron/src/icb_copilot/copilot.py:16), [server.py](/Users/4475918/Projects/temp/MyStudies_AppliedScripts/NVIDIA_Nemotron/src/icb_copilot/server.py:15), and [cli.py](/Users/4475918/Projects/temp/MyStudies_AppliedScripts/NVIDIA_Nemotron/src/icb_copilot/cli.py).
+Sources: [screen_narrative](../src/icb_copilot/copilot.py#L89), [summarize_evidence](../src/icb_copilot/copilot.py#L16), [server.py](../src/icb_copilot/server.py#L15), and [cli.py](../src/icb_copilot/cli.py).
 
 ## 6. Concrete mock input and output
 
@@ -240,7 +240,7 @@ Full output, with JSON formatting condensed for readability:
     "predicted_classes": {"clinical": null, "mif": null, "fused": null}
   },
   "quality": {"status": "mock", "issues": [], "screen": "heuristic; human review required"},
-  "provenance": {"prompt_version": "icb-interpretation-1.0", "backend": "mock", "generator": "deterministic_mock"}
+  "provenance": {"prompt_version": "icb-interpretation-1.1", "backend": "mock", "generator": "deterministic_mock"}
 }
 ```
 
@@ -263,7 +263,7 @@ Only IPv4 loopback addresses or `localhost` are accepted for binding. There is n
 
 The service uses a threaded HTTP server plus the per-copilot generation lock. Waiting requests can accumulate; there is no explicit bounded application admission queue, queue-wait timeout, inference deadline, request cancellation, or request ID. The 30-second socket timeout controls socket operations; it does **not** terminate a GPU call or the time spent waiting for the generation lock. Do not label it a 30-second inference SLA.
 
-Source: [server.py](/Users/4475918/Projects/temp/MyStudies_AppliedScripts/NVIDIA_Nemotron/src/icb_copilot/server.py:15).
+Source: [server.py](../src/icb_copilot/server.py#L15).
 
 ## 8. Experiment artifacts and evidence
 
@@ -285,7 +285,7 @@ The evaluator includes only labeled `test` or `out_of_fold` records with a speci
 
 The endpoint filter recognizes the sentinel strings `Not specified`, `unspecified`, and `unknown` after normalization. Any other nonempty endpoint text passes this structural filter; actual response timing, semantics, label provenance, compatible model IDs, folds, and leakage still require upstream review. Dataset size, scores, and narration do not establish calibration adequacy or better patient outcomes.
 
-Sources: [run_experiment](/Users/4475918/Projects/temp/MyStudies_AppliedScripts/NVIDIA_Nemotron/src/icb_copilot/experiment.py:34) and [evaluate_predictions](/Users/4475918/Projects/temp/MyStudies_AppliedScripts/NVIDIA_Nemotron/src/icb_copilot/evaluate.py:25).
+Sources: [run_experiment](../src/icb_copilot/experiment.py#L34) and [evaluate_predictions](../src/icb_copilot/evaluate.py#L25).
 
 ## 9. Proposed acceptance rubric for the real GPU demonstration
 
@@ -294,7 +294,7 @@ This rubric is a **proposed human-reviewed acceptance gate**, not an implemented
 | Gate | Proposed evidence to collect | Acceptance condition |
 | --- | --- | --- |
 | Runtime readiness | Doctor JSON and SLURM logs from the actual allocation. | Selected environment/driver/device checks pass; visible A30 is recorded. |
-| Real model smoke | Run the four synthetic fixtures with the vLLM backend; inspect the manifest and results. | Model initializes, guided decoding executes, all four patients return, and the run publishes all five artifacts. A mock-only run cannot satisfy this gate. |
+| Real model smoke | Run the four synthetic fixtures with the vLLM backend; inspect the manifest and results. | Model initializes, guided decoding executes, all four patients return, and the run publishes all six artifacts. A mock-only run cannot satisfy this gate. |
 | LLM participation | `source_counts`, `quality_counts`, and human inspection. | At least one acceptable result has `narrative_source="vllm"`; an all-fallback run demonstrates the pipeline but not usable accepted LLM prose. Fallback-rate tolerance must be agreed by the team. |
 | Grounding | Compare each synthetic narrative/structured result to supplied inputs. | No wrong scores, invented modalities, unsupported feature effects, or treatment/clinical-trial instructions; human reviewer approves every demonstration case. |
 | Edge-case presentation | Review concordant P48, discordant P12, clinical-only P07, and near-threshold P29. | Missing evidence and disagreement remain visible; threshold logic uses only supplied thresholds; unknown calibration and source/review status are displayed. |
@@ -424,7 +424,7 @@ These engineering trade-offs are based on the current code, not measured perform
 | Private result file modes and nonempty-directory protection | Restricts default file access and preserves completed runs. | This does not replace HPC access policy, approved storage/retention practices, or concurrent/crash testing. |
 | Direct dependency pins and recorded model revision | Makes the chosen runtime/model configuration reviewable. | The complete transitive environment is not enforced by a hash lock; cache weight sizes/configuration checks are not complete integrity verification. |
 
-Sources for these implementation choices: [schema.py](/Users/4475918/Projects/temp/MyStudies_AppliedScripts/NVIDIA_Nemotron/src/icb_copilot/schema.py), [backends.py](/Users/4475918/Projects/temp/MyStudies_AppliedScripts/NVIDIA_Nemotron/src/icb_copilot/backends.py), [copilot.py](/Users/4475918/Projects/temp/MyStudies_AppliedScripts/NVIDIA_Nemotron/src/icb_copilot/copilot.py), [server.py](/Users/4475918/Projects/temp/MyStudies_AppliedScripts/NVIDIA_Nemotron/src/icb_copilot/server.py), [experiment.py](/Users/4475918/Projects/temp/MyStudies_AppliedScripts/NVIDIA_Nemotron/src/icb_copilot/experiment.py), and [run_hpc.sh](/Users/4475918/Projects/temp/MyStudies_AppliedScripts/NVIDIA_Nemotron/scripts/run_hpc.sh).
+Sources for these implementation choices: [schema.py](../src/icb_copilot/schema.py), [backends.py](../src/icb_copilot/backends.py), [copilot.py](../src/icb_copilot/copilot.py), [server.py](../src/icb_copilot/server.py), [experiment.py](../src/icb_copilot/experiment.py), and [run_hpc.sh](../scripts/run_hpc.sh).
 
 ### 11.7 Edge-case checklist: existing behavior versus proposed work
 
@@ -451,7 +451,7 @@ This is a proposed review checklist, not a claim that all listed conditions have
 | Inference failure or existing nonempty output | No completed partial run is published; prior output is protected; locally tested. | Disk-full, SIGKILL, crash cleanup/durability, and concurrent-publication testing remain proposed. A hard kill during staging may leave an unpublished hidden temporary directory; there is no fsync guarantee or automatic stale-setup-lock cleanup. |
 | New mIF batch, shifted population, or H&E | No drift/harmonization/image adapter is implemented. | Evaluate new data upstream; H&E requires a contract change and separate model acceptance. |
 
-Current test sources: [test_contract.py](/Users/4475918/Projects/temp/MyStudies_AppliedScripts/NVIDIA_Nemotron/tests/test_contract.py), [test_copilot.py](/Users/4475918/Projects/temp/MyStudies_AppliedScripts/NVIDIA_Nemotron/tests/test_copilot.py), [test_io_evaluation.py](/Users/4475918/Projects/temp/MyStudies_AppliedScripts/NVIDIA_Nemotron/tests/test_io_evaluation.py), [test_backend.py](/Users/4475918/Projects/temp/MyStudies_AppliedScripts/NVIDIA_Nemotron/tests/test_backend.py), [test_http.py](/Users/4475918/Projects/temp/MyStudies_AppliedScripts/NVIDIA_Nemotron/tests/test_http.py), [test_experiment.py](/Users/4475918/Projects/temp/MyStudies_AppliedScripts/NVIDIA_Nemotron/tests/test_experiment.py), and [test_hpc_runner.py](/Users/4475918/Projects/temp/MyStudies_AppliedScripts/NVIDIA_Nemotron/tests/test_hpc_runner.py).
+Current test sources: [test_contract.py](../tests/test_contract.py), [test_copilot.py](../tests/test_copilot.py), [test_io_evaluation.py](../tests/test_io_evaluation.py), [test_backend.py](../tests/test_backend.py), [test_http.py](../tests/test_http.py), [test_experiment.py](../tests/test_experiment.py), and [test_hpc_runner.py](../tests/test_hpc_runner.py).
 
 ### 11.8 Demonstration claims and outstanding decisions
 

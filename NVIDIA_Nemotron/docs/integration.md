@@ -137,7 +137,7 @@ print(result["narrative"])
 For actual inference, replace the constructor with an explicit local snapshot:
 
 ```python
-copilot = Copilot(backend="vllm", model_path="/approved/local/model/snapshot")
+copilot = Copilot(backend="vllm", model_path=".cache/model-snapshot")
 ```
 
 Create the instance once per process so weights stay loaded. `copilot.interpret(record)` also accepts a dictionary; `copilot.interpret_many(records)` accepts a list and returns results in the input order. Malformed inputs raise `ContractError`. Model initialization or runtime errors propagate; the vLLM backend does not silently become mock. The deterministic fallback handles generated text rejected by the narrative screen.

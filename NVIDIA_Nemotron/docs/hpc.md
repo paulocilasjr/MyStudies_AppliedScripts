@@ -42,8 +42,8 @@ Use a specific input and output location when integrating team predictions:
 
 ```bash
 bash run_hpc.sh --offline \
-  --input /share/lab_goecks/Alyssa/Markowitz/feb2026/results/predictions/copilot_input.jsonl \
-  --output-dir /share/lab_goecks/Alyssa/Markowitz/feb2026/results/copilot/run-001
+  --input results/predictions/copilot_input.jsonl \
+  --output-dir results/copilot/run-001
 ```
 
 Inputs and outputs may contain patient-level context. Keep them within the study's approved HPC storage and use pseudonymous study IDs. The tracked `examples/` files are entirely synthetic. `.gitignore` excludes the default data, environment, cache, model, log, and result directories.
@@ -79,7 +79,7 @@ Runner files stay relative to the copied repository by default:
 If using a model directory prepared elsewhere on the HPC:
 
 ```bash
-bash run_hpc.sh --offline --model-path /approved/local/model/snapshot
+bash run_hpc.sh --offline --model-path .cache/model-snapshot
 ```
 
 A local snapshot must contain the tokenizer, configuration, and weight files. Copying an isolated model weight file is insufficient. Avoid a symlink-based Hugging Face snapshot whose backing `blobs/` directory was left behind during transfer.

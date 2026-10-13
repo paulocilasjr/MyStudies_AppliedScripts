@@ -1,0 +1,121 @@
+[
+  {
+    "input": {
+      "predictions": {
+        "clinical": {
+          "probability": 0.85,
+          "decision_threshold": 0.5,
+          "calibration": "unknown"
+        },
+        "mif": {
+          "probability": 0.79,
+          "decision_threshold": 0.5,
+          "calibration": "unknown"
+        },
+        "fused": {
+          "probability": 0.82,
+          "decision_threshold": 0.5,
+          "calibration": "unknown"
+        }
+      },
+      "comparison": {
+        "missing_modalities": [],
+        "score_disagreement": false,
+        "threshold_disagreement": false
+      },
+      "top_features": {
+        "clinical": [
+          {
+            "feature": "LDH level",
+            "value": 389,
+            "unit": "U/L",
+            "direction": "elevated",
+            "attribution": null
+          }
+        ],
+        "mif": [
+          {
+            "feature": "CD3+ CD8+ Ripley's L (20um)",
+            "value": 45.2,
+            "unit": "um",
+            "direction": "high",
+            "attribution": {
+              "method": "shap",
+              "value": 0.2,
+              "scale": "log_odds"
+            }
+          }
+        ]
+      },
+      "clinical_context": "Synthetic example with complementary clinical and tissue evidence."
+    },
+    "output": {
+      "interpretation": "The clinical and spatial mIF models provide complementary clinical and tissue evidence for review. Review the supplied measurements and model attribution separately, together with calibration and validation limits."
+    }
+  },
+  {
+    "input": {
+      "predictions": {
+        "clinical": {
+          "probability": 0.21,
+          "decision_threshold": 0.5,
+          "calibration": "unknown"
+        },
+        "mif": {
+          "probability": 0.78,
+          "decision_threshold": 0.5,
+          "calibration": "unknown"
+        },
+        "fused": {
+          "probability": 0.57,
+          "decision_threshold": 0.5,
+          "calibration": "unknown"
+        }
+      },
+      "comparison": {
+        "missing_modalities": [],
+        "score_disagreement": true,
+        "threshold_disagreement": true
+      },
+      "top_features": {},
+      "clinical_context": "Synthetic example with conflicting modality evidence."
+    },
+    "output": {
+      "interpretation": "The clinical and spatial mIF model outputs disagree, so the fused result should be reviewed alongside both inputs. Review the discordant evidence and model uncertainty before drawing conclusions from the combined score."
+    }
+  },
+  {
+    "input": {
+      "predictions": {
+        "clinical": {
+          "probability": 0.66,
+          "decision_threshold": 0.5,
+          "calibration": "unknown"
+        }
+      },
+      "comparison": {
+        "missing_modalities": [
+          "mif",
+          "fused"
+        ],
+        "score_disagreement": false,
+        "threshold_disagreement": false
+      },
+      "top_features": {
+        "clinical": [
+          {
+            "feature": "LDH level",
+            "value": 205,
+            "unit": "U/L",
+            "direction": "within supplied reference range",
+            "attribution": null
+          }
+        ]
+      },
+      "clinical_context": "Synthetic clinical-only example."
+    },
+    "output": {
+      "interpretation": "Only clinical model evidence is available; missing spatial mIF and fused predictions limit multimodal comparison. Review the supplied clinical measurements and calibration limits without inferring unavailable tissue evidence."
+    }
+  }
+]

@@ -7,6 +7,7 @@ import threading
 from typing import Callable
 
 from .backends import PROMPT_VERSION, VLLMBackend, build_messages
+from .prompts import PROMPT_SHA256
 from .schema import MODALITIES, ContractError, PatientPrediction
 
 DISPLAY = {"clinical": "clinical", "mif": "spatial mIF", "fused": "fused"}
@@ -86,7 +87,7 @@ def _strict_json(text: str) -> dict:
                       parse_constant=lambda value: (_ for _ in ()).throw(ValueError("nonfinite JSON number")))
 
 
-def screen_narrative(raw: str) -> tuple[str | None, list[str]]:
+def screen_narrative(raw: str, *, comparison: dict | None = None) -> tuple[str | None, list[str]]:
     """Heuristic screen only: passing does not imply clinical correctness."""
     issues = []
     if not isinstance(raw, str) or len(raw) > 5000:
@@ -118,6 +119,14 @@ def screen_narrative(raw: str) -> tuple[str | None, list[str]]:
     if re.search(r"\b(patient|tumou?r)\b.{0,30}\b(has|have|is|shows|demonstrates|exhibits|suffers)\b|"
                  r"\b(metastatic|mutation\w*|resistance|sensitivity|prognostic|immune infiltration)\b", text, re.I):
         issues.append("generated_patient_or_biological_claim")
+    if comparison is not None:
+        disagreement = comparison["score_disagreement"] or comparison["threshold_disagreement"]
+        mentions_disagreement = bool(re.search(r"\b(disagree\w*|discordant|conflict\w*)\b", text, re.I))
+        denies_disagreement = bool(re.search(r"\b(?:do not|does not|no|without(?: a)?(?: flagged)?)\s+(?:disagree\w*|discordance|conflict\w*)\b", text, re.I))
+        if disagreement and (not mentions_disagreement or denies_disagreement):
+            issues.append("missing_disagreement_context")
+        if comparison["missing_modalities"] and not re.search(r"\b(missing|unavailable|absent)\b", text, re.I):
+            issues.append("missing_modality_context")
     return (None, issues) if issues else (text, [])
 
 
@@ -154,7 +163,7 @@ class Copilot:
     def interpret(self, patient: PatientPrediction | dict) -> dict:
         return self.interpret_many([patient])[0]
 
-    def interpret_many(self, patients: list[PatientPrediction | dict]) -> list[dict]:
+    def interpret_many(self, patients: list[PatientPrediction | dict], *, generation_review: list | None = None) -> list[dict]:
         # Revalidate even dataclass inputs, which could have been manually constructed.
         normalized = [PatientPrediction.from_dict(p.to_dict() if isinstance(p, PatientPrediction) else p).to_dict()
                       for p in patients]
@@ -162,26 +171,32 @@ class Copilot:
             raise ContractError("batch contains duplicate patient IDs")
         if not normalized:
             return []
+        summaries = [summarize_evidence(p, disagreement_threshold=self.disagreement_threshold) for p in normalized]
         raw = []
         if self.backend == "vllm":
             with self._lock:
                 generate = self._generator or self._engine.generate
-                raw = generate([build_messages(p) for p in normalized])
+                raw = generate([build_messages(p, comparison=s[0]) for p, s in zip(normalized, summaries)])
             if not isinstance(raw, list) or len(raw) != len(normalized):
                 raise RuntimeError("backend output count does not match input count")
         results = []
         for i, patient in enumerate(normalized):
-            comparison, limitations = summarize_evidence(patient, disagreement_threshold=self.disagreement_threshold)
+            comparison, limitations = summaries[i]
             if self.backend == "mock":
                 interpretation, issues, source, status = fallback_interpretation(patient, comparison), [], "mock", "mock"
                 limitations.insert(0, "Synthetic narrative from the mock backend; no language model was executed.")
             else:
-                interpretation, issues = screen_narrative(raw[i])
+                interpretation, issues = screen_narrative(raw[i], comparison=comparison)
                 source, status = "vllm", "passed"
                 if interpretation is None:
                     interpretation = fallback_interpretation(patient, comparison)
                     source, status = "fallback", "fallback"
                     limitations.insert(0, "Generated text failed the automated screen; a deterministic evidence summary is shown.")
+            if generation_review is not None:
+                generation_review.append({"patient_id": patient["patient_id"],
+                    "raw_generation": raw[i] if self.backend == "vllm" else None,
+                    "narrative_source": source, "screen_status": status, "screen_issues": issues,
+                    "prompt_version": PROMPT_VERSION, "prompt_sha256": PROMPT_SHA256})
             results.append({
                 "schema_version": "1.0", "patient_id": patient["patient_id"],
                 "predictions": patient["predictions"], "top_features": patient["top_features"],
@@ -191,7 +206,7 @@ class Copilot:
                 "narrative_source": source, "review_required": True, "limitations": limitations,
                 "comparison": comparison,
                 "quality": {"status": status, "issues": issues, "screen": "heuristic; human review required"},
-                "provenance": {"prompt_version": PROMPT_VERSION, **self.metadata},
+                "provenance": {"prompt_version": PROMPT_VERSION, "prompt_sha256": PROMPT_SHA256, **self.metadata},
             })
         return results
 

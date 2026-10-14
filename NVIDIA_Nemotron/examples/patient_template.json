@@ -1,0 +1,64 @@
+{
+  "schema_version": "1.0",
+  "patient_id": "SYNTHETIC_TEMPLATE",
+  "predictions": {
+    "clinical": {
+      "probability": 0.85,
+      "model_id": "clinical-synthetic-v1",
+      "calibration": "unknown",
+      "decision_threshold": 0.5
+    },
+    "mif": {
+      "probability": 0.79,
+      "model_id": "mif-synthetic-v1",
+      "calibration": "unknown",
+      "decision_threshold": 0.5
+    },
+    "fused": {
+      "probability": 0.82,
+      "model_id": "fusion-synthetic-v1",
+      "calibration": "unknown",
+      "decision_threshold": 0.5
+    }
+  },
+  "top_features": {
+    "clinical": [
+      {
+        "feature": "LDH level",
+        "value": 389,
+        "unit": "U/L",
+        "direction": "elevated",
+        "attribution": null
+      },
+      {
+        "feature": "Prior ipilimumab",
+        "value": "Yes",
+        "direction": "received",
+        "attribution": null
+      }
+    ],
+    "mif": [
+      {
+        "feature": "CD3+ CD8+ Ripley's L (20um)",
+        "value": 45.2,
+        "unit": "um",
+        "direction": "high",
+        "attribution": {
+          "method": "shap",
+          "value": 0.2,
+          "scale": "log_odds"
+        }
+      },
+      {
+        "feature": "PDL1+ proportion",
+        "value": 0.034,
+        "direction": "high",
+        "attribution": null
+      }
+    ]
+  },
+  "clinical_context": "Synthetic example only: 62-year-old man with M1c melanoma; prior ipilimumab and current pembrolizumab recorded as study context.",
+  "ground_truth": null,
+  "evaluation_partition": "synthetic",
+  "response_definition": "Synthetic ICB responder label for integration testing; no clinical endpoint specified."
+}

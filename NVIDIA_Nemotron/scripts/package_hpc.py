@@ -11,13 +11,16 @@ FILES = ["README.md", "pyproject.toml", "requirements-vllm.txt", "run_hpc.sh", "
          "examples/upstream/clinical_predictions.csv", "examples/upstream/mif_predictions.csv",
          "examples/upstream/fused_predictions.csv", "examples/upstream/clinical_context.jsonl",
          "docs/hpc.md", "docs/integration.md", "docs/demo_ui.md", "docs/research_review.md",
-         "docs/first_hpc_smoke.md", "scripts/package_hpc.py"]
+         "docs/first_hpc_smoke.md", "docs/patient_inputs.md", "docs/prompt_review.md",
+         "examples/patient_template.json", "examples/prompt_quality_cases.jsonl", "scripts/package_hpc.py"]
 
 
 def main():
     files = {ROOT / name for name in FILES}
     for folder, pattern in (("src", "*.py"), ("tests", "*.py"), ("scripts", "*.sh")):
         files.update((ROOT / folder).rglob(pattern))
+    files.update((ROOT / "src/icb_copilot/skills").rglob("SKILL.md"))
+    files.update((ROOT / "src/icb_copilot/skills").rglob("*.json"))
     if any(path.is_symlink() or not path.is_file() for path in files):
         raise SystemExit("Package inputs must be existing regular source files, without symlinks")
     destination = ROOT / "dist"

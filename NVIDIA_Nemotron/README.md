@@ -18,7 +18,7 @@ The runner uses your existing Python and executes a deterministic `mock` experim
 
 ## Run on Moffitt's HPC
 
-Copy this folder to the approved HPC project location, for example under `/share/lab_goecks/Alyssa/Markowitz/feb2026/`, then run from the copied folder:
+Copy this folder to an approved shared HPC project location, then run from the copied folder:
 
 ```bash
 bash run_hpc.sh --smoke
@@ -72,11 +72,18 @@ bash run_hpc.sh --offline \
 
 Use the same CSV headers with real upstream files once those models are ready. The [team integration contract](docs/integration.md) specifies fields, attribution semantics, and the local HTTP endpoints for Junhao's UI. `src/nemotron_copilot.py` is the public integration facade; the implementation lives in `src/icb_copilot/`.
 
+## Prepare patient inputs and review the prompt
+
+Start with [patient input guidance](docs/patient_inputs.md) and the fully synthetic `examples/patient_template.json`. The six-case `examples/prompt_quality_cases.jsonl` additionally exercises absent thresholds and instruction-like context. Do not copy its synthetic scores into study records.
+
+The packaged [interpretation skill](src/icb_copilot/skills/icb-interpretation/SKILL.md) and three worked examples are loaded into the actual system prompt, including after wheel installation. The application supplies deterministic comparison flags and keeps labels out of the prompt. Prompt version and SHA-256 are recorded per result. [Prompt review and HPC commands](docs/prompt_review.md) explain raw reply inspection, strict real-model acceptance, and the remaining GPU verification step.
+
 ## Read an experiment's outputs
 
 | Artifact | Purpose |
 | --- | --- |
 | `narratives.jsonl` | One structured result per patient, including the narrative, unchanged input predictions, limitations, quality status, and provenance. Recommended UI input. |
+| `generation_review.jsonl` | Raw model replies, screen issues, and prompt version/hash for prompt review. Mock runs contain null replies; this file is not UI narrative input. |
 | `narratives.csv` | Compact patient summaries for tabular inspection. |
 | `report.md` | Human-readable experiment report. |
 | `manifest.json` | Run configuration, input identity, backend, and runtime provenance. |

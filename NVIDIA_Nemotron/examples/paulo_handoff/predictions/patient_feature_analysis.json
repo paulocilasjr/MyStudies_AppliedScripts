@@ -1,0 +1,507 @@
+{
+  "S01": {
+    "clinical": {
+      "base_value": 0.4998,
+      "output_value": 0.9708,
+      "features": [
+        {
+          "feature": "Lung metastases",
+          "raw_feature": "has_lung_mets",
+          "value": 1.0,
+          "shap": 0.2105
+        },
+        {
+          "feature": "Gender (male)",
+          "raw_feature": "gender_male",
+          "value": 0.0,
+          "shap": 0.0855
+        },
+        {
+          "feature": "Metastatic stage",
+          "raw_feature": "met_stage",
+          "value": 1.0,
+          "shap": 0.0821
+        },
+        {
+          "feature": "Prior targeted therapy",
+          "raw_feature": "had_targeted_therapy",
+          "value": 0.0,
+          "shap": 0.0677
+        },
+        {
+          "feature": "Tissue resection",
+          "raw_feature": "tissue_resection",
+          "value": 1.0,
+          "shap": 0.0253
+        }
+      ]
+    },
+    "mif": [
+      {
+        "feature": "T cell \u2192 B/T cell co-localization",
+        "raw_feature": "ripleysL_20um.CD3+_to_CD3+ CD20+",
+        "value": 86.8945,
+        "contrast": -17.3268
+      },
+      {
+        "feature": "T cell \u2192 iNOS+ tumor proximity",
+        "raw_feature": "ripleysL_20um.CD3+_to_iNOS+ SOX10+",
+        "value": 40.7118,
+        "contrast": 6.0339
+      },
+      {
+        "feature": "Cytotoxic T cell \u2192 PDL1+ proximity",
+        "raw_feature": "ripleysL_20um.CD3+ CD8+_to_PDL1+",
+        "value": 40.4563,
+        "contrast": 1.813
+      },
+      {
+        "feature": "B/T cell \u2192 CD8+ T cell co-localization",
+        "raw_feature": "ripleysL_20um.CD3+ CD20+_to_CD8+",
+        "value": 49.6917,
+        "contrast": -0.3708
+      },
+      {
+        "feature": "CD3+CD8+iNOS+ proportion",
+        "raw_feature": "prop.CD3_CD8_iNOS",
+        "value": 0.0046,
+        "contrast": 0.0027
+      },
+      {
+        "feature": "nNOS+/SOX10+ tumor subpopulation",
+        "raw_feature": "subpop.nNOS.SOX10",
+        "value": 0.3002,
+        "contrast": -0.0019
+      },
+      {
+        "feature": "CD3+CD8+PDL1+ proportion",
+        "raw_feature": "prop.CD3_CD8_PDL1",
+        "value": 0.0039,
+        "contrast": -0.0003
+      },
+      {
+        "feature": "Biopsy site: skin",
+        "raw_feature": "biopsy_skin",
+        "value": 0.0,
+        "contrast": 0.0
+      },
+      {
+        "feature": "Biopsy site: lymph node",
+        "raw_feature": "biopsy_ln",
+        "value": 0.0,
+        "contrast": 0.0
+      },
+      {
+        "feature": "Biopsy site: visceral",
+        "raw_feature": "biopsy_visceral",
+        "value": 1.0,
+        "contrast": 0.0
+      }
+    ],
+    "prob_mif_real": 0.9402
+  },
+  "S02": {
+    "clinical": {
+      "base_value": 0.4998,
+      "output_value": 0.0734,
+      "features": [
+        {
+          "feature": "Prior targeted therapy",
+          "raw_feature": "had_targeted_therapy",
+          "value": 1.0,
+          "shap": -0.2544
+        },
+        {
+          "feature": "Metastatic stage",
+          "raw_feature": "met_stage",
+          "value": 3.0,
+          "shap": -0.0711
+        },
+        {
+          "feature": "Gender (male)",
+          "raw_feature": "gender_male",
+          "value": 1.0,
+          "shap": -0.051
+        },
+        {
+          "feature": "Lung metastases",
+          "raw_feature": "has_lung_mets",
+          "value": 0.0,
+          "shap": -0.0345
+        },
+        {
+          "feature": "Tissue resection",
+          "raw_feature": "tissue_resection",
+          "value": 0.0,
+          "shap": -0.0155
+        }
+      ]
+    },
+    "mif": [
+      {
+        "feature": "B/T cell \u2192 CD8+ T cell co-localization",
+        "raw_feature": "ripleysL_20um.CD3+ CD20+_to_CD8+",
+        "value": 40.487,
+        "contrast": 0.0
+      },
+      {
+        "feature": "T cell \u2192 B/T cell co-localization",
+        "raw_feature": "ripleysL_20um.CD3+_to_CD3+ CD20+",
+        "value": 90.2508,
+        "contrast": 0.0
+      },
+      {
+        "feature": "nNOS+/SOX10+ tumor subpopulation",
+        "raw_feature": "subpop.nNOS.SOX10",
+        "value": 0.0,
+        "contrast": 0.0
+      },
+      {
+        "feature": "T cell \u2192 iNOS+ tumor proximity",
+        "raw_feature": "ripleysL_20um.CD3+_to_iNOS+ SOX10+",
+        "value": 24.3469,
+        "contrast": 0.0
+      },
+      {
+        "feature": "Cytotoxic T cell \u2192 PDL1+ proximity",
+        "raw_feature": "ripleysL_20um.CD3+ CD8+_to_PDL1+",
+        "value": 39.0219,
+        "contrast": 0.0
+      },
+      {
+        "feature": "CD3+CD8+PDL1+ proportion",
+        "raw_feature": "prop.CD3_CD8_PDL1",
+        "value": 0.0006,
+        "contrast": 0.0
+      },
+      {
+        "feature": "CD3+CD8+iNOS+ proportion",
+        "raw_feature": "prop.CD3_CD8_iNOS",
+        "value": 0.0,
+        "contrast": 0.0
+      },
+      {
+        "feature": "Biopsy site: skin",
+        "raw_feature": "biopsy_skin",
+        "value": 0.0,
+        "contrast": 0.0
+      },
+      {
+        "feature": "Biopsy site: lymph node",
+        "raw_feature": "biopsy_ln",
+        "value": 0.0,
+        "contrast": 0.0
+      },
+      {
+        "feature": "Biopsy site: visceral",
+        "raw_feature": "biopsy_visceral",
+        "value": 1.0,
+        "contrast": 0.0
+      }
+    ],
+    "prob_mif_real": 0.757
+  },
+  "S03": {
+    "clinical": {
+      "base_value": 0.4998,
+      "output_value": 0.1142,
+      "features": [
+        {
+          "feature": "Prior targeted therapy",
+          "raw_feature": "had_targeted_therapy",
+          "value": 1.0,
+          "shap": -0.4322
+        },
+        {
+          "feature": "Gender (male)",
+          "raw_feature": "gender_male",
+          "value": 0.0,
+          "shap": 0.1191
+        },
+        {
+          "feature": "Metastatic stage",
+          "raw_feature": "met_stage",
+          "value": 3.0,
+          "shap": -0.0654
+        },
+        {
+          "feature": "Lung metastases",
+          "raw_feature": "has_lung_mets",
+          "value": 0.0,
+          "shap": -0.0361
+        },
+        {
+          "feature": "Tissue resection",
+          "raw_feature": "tissue_resection",
+          "value": 0.0,
+          "shap": 0.029
+        }
+      ]
+    },
+    "mif": [
+      {
+        "feature": "T cell \u2192 B/T cell co-localization",
+        "raw_feature": "ripleysL_20um.CD3+_to_CD3+ CD20+",
+        "value": 88.8745,
+        "contrast": -15.0645
+      },
+      {
+        "feature": "T cell \u2192 iNOS+ tumor proximity",
+        "raw_feature": "ripleysL_20um.CD3+_to_iNOS+ SOX10+",
+        "value": 45.8191,
+        "contrast": 7.1577
+      },
+      {
+        "feature": "Cytotoxic T cell \u2192 PDL1+ proximity",
+        "raw_feature": "ripleysL_20um.CD3+ CD8+_to_PDL1+",
+        "value": 40.0823,
+        "contrast": 3.3255
+      },
+      {
+        "feature": "B/T cell \u2192 CD8+ T cell co-localization",
+        "raw_feature": "ripleysL_20um.CD3+ CD20+_to_CD8+",
+        "value": 60.2341,
+        "contrast": 1.7901
+      },
+      {
+        "feature": "nNOS+/SOX10+ tumor subpopulation",
+        "raw_feature": "subpop.nNOS.SOX10",
+        "value": 0.4019,
+        "contrast": 0.0038
+      },
+      {
+        "feature": "CD3+CD8+iNOS+ proportion",
+        "raw_feature": "prop.CD3_CD8_iNOS",
+        "value": 0.006,
+        "contrast": 0.0018
+      },
+      {
+        "feature": "CD3+CD8+PDL1+ proportion",
+        "raw_feature": "prop.CD3_CD8_PDL1",
+        "value": 0.0039,
+        "contrast": 0.0006
+      },
+      {
+        "feature": "Biopsy site: skin",
+        "raw_feature": "biopsy_skin",
+        "value": 0.0,
+        "contrast": 0.0
+      },
+      {
+        "feature": "Biopsy site: lymph node",
+        "raw_feature": "biopsy_ln",
+        "value": 0.0,
+        "contrast": 0.0
+      },
+      {
+        "feature": "Biopsy site: visceral",
+        "raw_feature": "biopsy_visceral",
+        "value": 1.0,
+        "contrast": 0.0
+      }
+    ],
+    "prob_mif_real": 0.9857
+  },
+  "S04": {
+    "clinical": {
+      "base_value": 0.4998,
+      "output_value": 0.9643,
+      "features": [
+        {
+          "feature": "Lung metastases",
+          "raw_feature": "has_lung_mets",
+          "value": 1.0,
+          "shap": 0.2028
+        },
+        {
+          "feature": "Metastatic stage",
+          "raw_feature": "met_stage",
+          "value": 2.0,
+          "shap": 0.1705
+        },
+        {
+          "feature": "Tissue resection",
+          "raw_feature": "tissue_resection",
+          "value": 1.0,
+          "shap": 0.0792
+        },
+        {
+          "feature": "Prior targeted therapy",
+          "raw_feature": "had_targeted_therapy",
+          "value": 0.0,
+          "shap": 0.049
+        },
+        {
+          "feature": "Gender (male)",
+          "raw_feature": "gender_male",
+          "value": 1.0,
+          "shap": -0.037
+        }
+      ]
+    },
+    "mif": [
+      {
+        "feature": "T cell \u2192 B/T cell co-localization",
+        "raw_feature": "ripleysL_20um.CD3+_to_CD3+ CD20+",
+        "value": 90.0172,
+        "contrast": -1.998
+      },
+      {
+        "feature": "B/T cell \u2192 CD8+ T cell co-localization",
+        "raw_feature": "ripleysL_20um.CD3+ CD20+_to_CD8+",
+        "value": 40.5613,
+        "contrast": -0.5508
+      },
+      {
+        "feature": "Cytotoxic T cell \u2192 PDL1+ proximity",
+        "raw_feature": "ripleysL_20um.CD3+ CD8+_to_PDL1+",
+        "value": 38.9979,
+        "contrast": 0.1998
+      },
+      {
+        "feature": "T cell \u2192 iNOS+ tumor proximity",
+        "raw_feature": "ripleysL_20um.CD3+_to_iNOS+ SOX10+",
+        "value": 24.2716,
+        "contrast": 0.0168
+      },
+      {
+        "feature": "nNOS+/SOX10+ tumor subpopulation",
+        "raw_feature": "subpop.nNOS.SOX10",
+        "value": 0.0003,
+        "contrast": -0.0005
+      },
+      {
+        "feature": "CD3+CD8+PDL1+ proportion",
+        "raw_feature": "prop.CD3_CD8_PDL1",
+        "value": 0.0009,
+        "contrast": -0.0002
+      },
+      {
+        "feature": "CD3+CD8+iNOS+ proportion",
+        "raw_feature": "prop.CD3_CD8_iNOS",
+        "value": 0.0006,
+        "contrast": 0.0001
+      },
+      {
+        "feature": "Biopsy site: skin",
+        "raw_feature": "biopsy_skin",
+        "value": 1.0,
+        "contrast": 0.0
+      },
+      {
+        "feature": "Biopsy site: lymph node",
+        "raw_feature": "biopsy_ln",
+        "value": 0.0,
+        "contrast": 0.0
+      },
+      {
+        "feature": "Biopsy site: visceral",
+        "raw_feature": "biopsy_visceral",
+        "value": 0.0,
+        "contrast": 0.0
+      }
+    ],
+    "prob_mif_real": 0.9909
+  },
+  "S05": {
+    "clinical": {
+      "base_value": 0.4998,
+      "output_value": 0.5824,
+      "features": [
+        {
+          "feature": "Gender (male)",
+          "raw_feature": "gender_male",
+          "value": 0.0,
+          "shap": 0.1714
+        },
+        {
+          "feature": "Lung metastases",
+          "raw_feature": "has_lung_mets",
+          "value": 0.0,
+          "shap": -0.1464
+        },
+        {
+          "feature": "Prior targeted therapy",
+          "raw_feature": "had_targeted_therapy",
+          "value": 0.0,
+          "shap": 0.1189
+        },
+        {
+          "feature": "Tissue resection",
+          "raw_feature": "tissue_resection",
+          "value": 1.0,
+          "shap": -0.0564
+        },
+        {
+          "feature": "Metastatic stage",
+          "raw_feature": "met_stage",
+          "value": 3.0,
+          "shap": -0.0049
+        }
+      ]
+    },
+    "mif": [
+      {
+        "feature": "T cell \u2192 B/T cell co-localization",
+        "raw_feature": "ripleysL_20um.CD3+_to_CD3+ CD20+",
+        "value": 85.6313,
+        "contrast": -20.8435
+      },
+      {
+        "feature": "B/T cell \u2192 CD8+ T cell co-localization",
+        "raw_feature": "ripleysL_20um.CD3+ CD20+_to_CD8+",
+        "value": 47.8323,
+        "contrast": -5.9494
+      },
+      {
+        "feature": "T cell \u2192 iNOS+ tumor proximity",
+        "raw_feature": "ripleysL_20um.CD3+_to_iNOS+ SOX10+",
+        "value": 35.6824,
+        "contrast": 5.388
+      },
+      {
+        "feature": "Cytotoxic T cell \u2192 PDL1+ proximity",
+        "raw_feature": "ripleysL_20um.CD3+ CD8+_to_PDL1+",
+        "value": 39.4159,
+        "contrast": 5.2172
+      },
+      {
+        "feature": "CD3+CD8+iNOS+ proportion",
+        "raw_feature": "prop.CD3_CD8_iNOS",
+        "value": 0.0055,
+        "contrast": 0.0033
+      },
+      {
+        "feature": "nNOS+/SOX10+ tumor subpopulation",
+        "raw_feature": "subpop.nNOS.SOX10",
+        "value": 0.3012,
+        "contrast": 0.002
+      },
+      {
+        "feature": "CD3+CD8+PDL1+ proportion",
+        "raw_feature": "prop.CD3_CD8_PDL1",
+        "value": 0.0041,
+        "contrast": 0.0001
+      },
+      {
+        "feature": "Biopsy site: skin",
+        "raw_feature": "biopsy_skin",
+        "value": 1.0,
+        "contrast": 0.0
+      },
+      {
+        "feature": "Biopsy site: lymph node",
+        "raw_feature": "biopsy_ln",
+        "value": 0.0,
+        "contrast": 0.0
+      },
+      {
+        "feature": "Biopsy site: visceral",
+        "raw_feature": "biopsy_visceral",
+        "value": 0.0,
+        "contrast": 0.0
+      }
+    ],
+    "prob_mif_real": 0.9942
+  }
+}

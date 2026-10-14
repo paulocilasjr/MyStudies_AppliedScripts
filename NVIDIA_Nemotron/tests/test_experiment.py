@@ -9,7 +9,7 @@ import unittest
 from nemotron_copilot import Copilot
 from icb_copilot.experiment import run_experiment
 
-from helpers import prediction
+from helpers import generator as part_generator, prediction
 
 
 class ExperimentTests(unittest.TestCase):
@@ -67,10 +67,7 @@ class ExperimentTests(unittest.TestCase):
                 changed = prediction()
                 changed["predictions"]["clinical"]["probability"] = 0.1
                 source.write_text(json.dumps(changed) + "\n", encoding="utf-8")
-                return [json.dumps({"interpretation": (
-                    "The modalities offer complementary evidence for review. "
-                    "Independent clinical assessment is needed."
-                )})] * len(conversations)
+                return part_generator()(conversations)
 
             manifest = run_experiment(source, output, Copilot(backend="vllm", generator=generator))
             self.assertEqual(manifest["input_sha256"], original_hash)

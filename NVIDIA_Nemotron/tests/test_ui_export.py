@@ -10,7 +10,7 @@ from nemotron_copilot import Copilot
 from icb_copilot.experiment import run_experiment
 from icb_copilot.ui_export import export_ui_bundle, UI_COMMIT
 
-from helpers import clinical_only, prediction
+from helpers import clinical_only, generator, prediction
 
 
 class UIExportTests(unittest.TestCase):
@@ -146,11 +146,11 @@ class UIExportTests(unittest.TestCase):
                 _, run, output = self.make_run()
                 rows = self.records(run / "narratives.jsonl")
                 if corruption == "score":
-                    rows[0]["narrative"] = rows[0]["narrative"].replace("clinical 0.850", "clinical 0.950")
+                    rows[0]["narrative"] = rows[0]["narrative"].replace("Clinical model score = 0.8500", "Clinical model score = 0.9500")
                 else:
                     rows[0]["narrative"] = rows[0]["narrative"].removesuffix("Research output requires independent clinical review and does not establish treatment benefit.")
                 self.write_records(run, rows)
-                with self.assertRaisesRegex(ValueError, "factual prefix or review sentence"):
+                with self.assertRaisesRegex(ValueError, "report scores, sections or review sentence"):
                     export_ui_bundle(run, output)
                 self.assertFalse(output.exists())
 
@@ -187,7 +187,7 @@ class UIExportTests(unittest.TestCase):
 
     def test_fallback_remains_explicit_with_screen_issues(self):
         def rejected(conversations):
-            return [json.dumps({"interpretation": "Response is guaranteed at 99% and treatment should be selected."})] * len(conversations)
+            return generator(conclusion="Response is guaranteed at 99% and treatment should be selected.")(conversations)
         _, run, output = self.make_run(copilot=Copilot(backend="vllm", generator=rejected))
         summary = export_ui_bundle(run, output)
         text = json.loads((output / "narratives.json").read_text())["P48"]

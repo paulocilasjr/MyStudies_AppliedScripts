@@ -20,4 +20,4 @@ py-modules = ["nemotron_copilot"]
 where = ["src"]
 
 [tool.setuptools.package-data]
-icb_copilot = ["skills/*/SKILL.md", "skills/*/references/*.json"]
+icb_copilot = ["skills/*/SKILL.md", "skills/*/references/*.json", "skills/*/references/*.md"]

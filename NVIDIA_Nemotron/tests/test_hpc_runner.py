@@ -30,6 +30,7 @@ class HPCRunnerTests(unittest.TestCase):
         for filename in ("run_hpc.sh", "requirements-vllm.txt"):
             shutil.copy2(PROJECT_ROOT / filename, self.project / filename)
         (self.project / "config").mkdir()
+        (self.project / "examples" / "paulo_handoff").mkdir(parents=True)
         self.stub_directory = self.directory / "fake tools"
         self.stub_directory.mkdir()
         # Ensure /usr/bin/env python3 invokes this test suite's interpreter,
@@ -71,6 +72,13 @@ if args[:3] == ['-m', 'nemotron_copilot', 'experiment']:
     sys.exit(int(os.environ.get('COPILOT_TEST_EXPERIMENT_STATUS', '0')))
 if args[:3] == ['-m', 'nemotron_copilot', 'verify-run']:
     sys.exit(int(os.environ.get('COPILOT_TEST_VERIFICATION_STATUS', '0')))
+if args[:3] == ['-m', 'nemotron_copilot', 'prepare-handoff']:
+    status = int(os.environ.get('COPILOT_TEST_HANDOFF_STATUS', '0'))
+    if status:
+        sys.exit(status)
+    output = Path(args[args.index('--output-dir') + 1])
+    output.mkdir(parents=True)
+    (output / 'patients.jsonl').write_text('{}\\n', encoding='utf-8')
 if args[:3] == ['-m', 'nemotron_copilot', 'prepare-model']:
     snapshot = Path(args[args.index('--cache-dir') + 1]) / 'fake model snapshot'
     snapshot.mkdir(parents=True, exist_ok=True)
@@ -126,6 +134,23 @@ def record(kind):
         if not self.capture.exists():
             return []
         return [json.loads(line) for line in self.capture.read_text(encoding="utf-8").splitlines()]
+
+    def run_handoff(self, *arguments, job_id=None, extra_environment=None, spooled=False):
+        environment = self.environment.copy()
+        environment["COPILOT_PYTHON"] = str(self.environment_python)
+        if job_id is not None:
+            environment["SLURM_JOB_ID"] = str(job_id)
+        environment.update(extra_environment or {})
+        script = self.project / "scripts" / "run_handoff.sh"
+        if spooled:
+            spool = self.directory / "spool"
+            spool.mkdir()
+            shutil.copy2(script, spool / "job.sh")
+            script = spool / "job.sh"
+        return subprocess.run(
+            ["bash", str(script), *map(str, arguments)], cwd=self.directory,
+            env=environment, capture_output=True, text=True, timeout=30,
+        )
 
     def assert_succeeded(self, result):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -316,6 +341,84 @@ def record(kind):
         self.assertEqual(result.returncode, 2)
         self.assertEqual(self.calls()[-1]["args"][2], "verify-run")
         self.assertNotIn("GPU smoke verification passed", result.stdout)
+
+    def test_handoff_local_pipeline_preserves_source_and_uses_one_run_root(self):
+        source = self.project / "examples" / "paulo_handoff"
+        sentinel = source / "original.txt"
+        sentinel.write_text("keep original\n", encoding="utf-8")
+        output = self.project / "results" / "handoff output with spaces"
+        result = self.run_handoff("--backend", "mock", "--output-dir", output)
+        self.assert_succeeded(result)
+        application = [call for call in self.calls() if call["args"][:2] == ["-m", "nemotron_copilot"]]
+        self.assertEqual([call["args"][2] for call in application],
+                         ["prepare-handoff", "experiment", "verify-run", "export-handoff-ui"])
+        self.assertIn(str(output / "input"), application[0]["args"])
+        self.assertIn(str(output / "input" / "patients.jsonl"), application[1]["args"])
+        self.assertIn(str(output / "experiment"), application[1]["args"])
+        self.assertIn(str(output / "ui"), application[-1]["args"])
+        self.assertIn(str(source), application[0]["args"])
+        self.assertIn(str(source), application[-1]["args"])
+        self.assertNotIn("--require-vllm", application[2]["args"])
+        self.assertEqual(sentinel.read_text(encoding="utf-8"), "keep original\n")
+
+    def test_handoff_vllm_submission_prepares_then_replays_from_shared_root(self):
+        output = self.project / "results" / "handoff gpu"
+        result = self.run_handoff("--backend", "vllm", "--output-dir", output)
+        self.assert_succeeded(result)
+        self.assertTrue(any(call["args"][:3] == ["-m", "nemotron_copilot", "prepare-model"]
+                            for call in self.calls()))
+        submission = self.calls()[-1]
+        self.assertEqual(submission["kind"], "sbatch")
+        self.assertIn(str(self.project / "scripts" / "run_handoff.sh"), submission["args"])
+        self.assertIn("--project-root", submission["args"])
+        self.assertIn(str(self.project), submission["args"])
+        self.assertIn("--direct", submission["args"])
+        self.assertIn("--offline", submission["args"])
+        self.assertNotIn("", submission["args"])
+        self.assertFalse(output.exists())
+        self.assertEqual((self.project / ".state" / "last_handoff_job_id").read_text().strip(), "54321")
+
+    def test_handoff_gpu_runs_verification_before_export_without_download(self):
+        self.prepare()
+        previous_count = len(self.calls())
+        result = self.run_handoff("--backend", "vllm", "--direct", "--offline", job_id=99)
+        self.assert_succeeded(result)
+        calls = self.calls()[previous_count:]
+        self.assertFalse(any(call["args"][:2] == ["-m", "pip"] for call in calls))
+        self.assertFalse(any(call["args"][:3] == ["-m", "nemotron_copilot", "prepare-model"] for call in calls))
+        application = [call for call in calls if call["args"][:2] == ["-m", "nemotron_copilot"]]
+        self.assertEqual([call["args"][2] for call in application],
+                         ["prepare-handoff", "doctor", "experiment", "verify-run", "export-handoff-ui"])
+        verification = application[-2]["args"]
+        for expected in ("--require-vllm", "--require-synthetic", "--expected-model-id", "--expected-model-revision"):
+            self.assertIn(expected, verification)
+
+    def test_handoff_failure_stops_before_ui_export(self):
+        result = self.run_handoff("--backend", "mock", extra_environment={"COPILOT_TEST_VERIFICATION_STATUS": "1"})
+        self.assertEqual(result.returncode, 1)
+        self.assertFalse(any(call["args"][:3] == ["-m", "nemotron_copilot", "export-handoff-ui"] for call in self.calls()))
+        self.assertNotIn("Handoff workflow completed", result.stdout)
+
+    def test_handoff_import_failure_stops_before_generation(self):
+        result = self.run_handoff("--backend", "mock", extra_environment={"COPILOT_TEST_HANDOFF_STATUS": "2"})
+        self.assertEqual(result.returncode, 2)
+        self.assertFalse(any(call["args"][:3] == ["-m", "nemotron_copilot", "experiment"] for call in self.calls()))
+
+    def test_handoff_rejects_forwarded_input_and_existing_run_root(self):
+        result = self.run_handoff("--", "--inp", "other.jsonl")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("generation-setting", result.stderr)
+        existing = self.project / "existing"
+        existing.mkdir()
+        result = self.run_handoff("--output-dir", existing)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("already exists", result.stderr)
+        self.assertEqual(self.calls(), [])
+
+    def test_handoff_script_uses_explicit_shared_root_when_spooled(self):
+        result = self.run_handoff("--project-root", self.project, "--backend", "mock", spooled=True)
+        self.assert_succeeded(result)
+        self.assertEqual(self.calls()[-1]["args"][2], "export-handoff-ui")
 
 
 if __name__ == "__main__":

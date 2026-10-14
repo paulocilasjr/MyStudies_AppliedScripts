@@ -142,23 +142,40 @@ Importing the facade and constructing `Copilot(backend="vllm", model_path=...)` 
 
 Settings permit 32–1,024 generated tokens, with `max_tokens < max_model_len <=4096`; GPU utilization must be in `(0,0.95]` and temperature in `[0,1]`. Character-valid input can still exceed the token budget. Token checking currently happens **after lazy model initialization** but before generation, and over-budget input raises an error instead of invoking a narrative fallback.
 
-The user message contains only predictions, top features, clinical context, and response definition. The explicit `ground_truth`, patient ID, and evaluation partition are withheld from the prompt. However, the free-text context can contain outcome information or instructions supplied upstream; exclusion of the explicit label is not a semantic leakage audit. Angle brackets are escaped to avoid role-delimiter boundaries, and the system prompt marks evidence as untrusted data, but the harness does not prove resistance to all prompt injection or outcome leakage.
+Since prompt `icb-interpretation-2.0`, each patient produces three short conversations, one per report part (`prediction_summary`, `clinical_interpretation`, `conclusion`). Each conversation has its own focused system prompt. The user message carries only that part's plain-word evidence:
+- the comparison `situation` and the computed `hypothesis`;
+- or the strongest clinical features with their SHAP push direction and a curated literature gist.
 
-The application applies the model tokenizer's chat template with `add_generation_prompt=True`. Guided decoding requests exactly an object with one string field:
+Raw scores, free-text clinical context, `ground_truth`, patient ID, and evaluation partition are withheld. Feature names are the remaining free text. Angle brackets are escaped to avoid role-delimiter boundaries, and the system prompt marks evidence as untrusted data. The harness does not prove resistance to all prompt injection or outcome leakage.
+
+The application applies the model tokenizer's chat template with `add_generation_prompt=True`. Guided decoding requests exactly an object with one string field per part:
 
 ```json
-{"interpretation": "Two concise research interpretation sentences."}
+{"text": "Two or three short sentences for this report part."}
 ```
 
-The schema requires `interpretation` and disallows additional properties. It constrains output shape, not medical truth, grounding, or sentence count. The code uses vLLM 0.10.2's `GuidedDecodingParams`; the official [structured-output documentation](https://docs.vllm.ai/en/v0.10.2/features/structured_outputs.html) describes this mechanism.
+The schema requires `text` and disallows additional properties. It constrains output shape, not medical truth, grounding, or sentence count. The code uses vLLM 0.10.2's `GuidedDecodingParams`; the official [structured-output documentation](https://docs.vllm.ai/en/v0.10.2/features/structured_outputs.html) describes this mechanism.
 
-The factual prefix is assembled by Python from supplied scores and at most two features per modality. Scores appear to three decimal places; signed attribution values use three significant digits; long feature values are abbreviated in prose. Full normalized predictions, features, and context remain in the structured result. The LLM is asked not to reproduce numbers, demographics, feature names with digits, or patient identifiers. This reduces generated numeric claims; it does not verify upstream facts or all possible claims expressed in words.
+Python renders the rest of the four-part report (`report.render_report`):
+- scores to four decimal places;
+- clinical features grouped by SHAP sign, with values and attributions;
+- curated, cited literature notes per clinical and mIF feature;
+- mIF attention contrasts;
+- the review notice.
+
+Full normalized predictions, features, and context remain in the structured result. The LLM is asked not to write numbers or patient identifiers. This reduces generated numeric claims; it does not verify upstream facts or all possible claims expressed in words.
 
 Sources: [build_messages / VLLMBackend](../src/icb_copilot/backends.py#L30), [Copilot](../src/icb_copilot/copilot.py#L124), and [CLI settings](../src/icb_copilot/cli.py#L17).
 
 ## 5. Quality states and failure classifications
 
-The screen strictly parses the generated JSON, checks its single-field shape, limits raw text to 5,000 characters, and requires interpretation text to be 40–1,200 characters. It flags digits/percent signs, selected markup or instruction patterns, treatment/performance claims, measurement-as-effect language, and selected patient/biological assertions. It is a lexical heuristic. Valid claims can be rejected because a negated phrase matches; unsupported paraphrases can pass. The screen does not prove semantic grounding or enforce exactly two sentences.
+The screen (`screen_report`) strictly parses each part's JSON, checks its single-field shape, limits raw replies to 3,000 characters, and requires each part to be 30–900 characters. It flags:
+- digits or percent signs outside supplied feature and marker names;
+- selected markup or instruction patterns;
+- treatment, certainty, or trial language;
+- missing acknowledgment of flagged disagreement or missing modalities.
+
+`report_contradictions` rejects threshold sides, fused sides, hypotheses, tendencies and clinical feature directions that contradict the application's computed facts. It is a lexical heuristic: valid claims can be rejected because a phrase matches, and unsupported paraphrases can pass. The screen does not prove semantic grounding or enforce sentence counts. If any part is rejected, all three parts are replaced by deterministic prose and labelled `fallback`.
 
 | Outcome | Structured behavior |
 | --- | --- |
@@ -413,7 +430,7 @@ These engineering trade-offs are based on the current code, not measured perform
 | --- | --- | --- |
 | Strict schema and supported modality keys | Exposes malformed exports early. | It rejects new fields/modalities; semantic mistakes can still be structurally valid. H&E requires a versioned integration change. |
 | Predictions/features serialized into text | Decouples upstream model implementations from narrative generation. | The LLM sees exported summaries, not raw assay/image evidence, and cannot independently validate the predictors. |
-| Small 4,096-token context and 300-token output allowance | Makes resource expectations explicit for the chosen model. | Verbose but valid context can exceed the 3,796-token prompt allowance; truncated generation can fail the screen. No automatic evidence selection/truncation is implemented. |
+| Small 4,096-token context and 200-token output allowance per report part | Makes resource expectations explicit for the chosen model. | Verbose but valid context can exceed the 3,796-token prompt allowance; truncated generation can fail the screen. No automatic evidence selection/truncation is implemented. |
 | BF16, eager execution, one GPU, four scheduled sequences | Defines a conservative, understandable A30 configuration. | Actual VRAM, latency, and throughput remain unmeasured on the target device; the settings do not guarantee successful load or completion. |
 | Seed 42 and zero temperature | Fixes generation settings for experiments. | It supplies neither predictive uncertainty nor a cross-platform determinism guarantee. |
 | Per-instance generation lock | Avoids simultaneous calls into one model instance. | Concurrent HTTP requests can wait without a bounded application queue, queue timeout, or cancellable inference deadline. Multiple processes have separate locks/models. |

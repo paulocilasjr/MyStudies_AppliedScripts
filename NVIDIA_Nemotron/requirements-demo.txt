@@ -1,0 +1,2 @@
+# Optional viewer only; the copilot mock/core has no runtime dependencies.
+streamlit==1.65.0

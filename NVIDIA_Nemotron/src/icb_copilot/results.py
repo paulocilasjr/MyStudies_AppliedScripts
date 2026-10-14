@@ -6,13 +6,15 @@ import math
 from pathlib import Path
 import re
 
-from .copilot import _strict_json, summarize_evidence, score_sentence, REVIEW_SENTENCE
+from .copilot import _strict_json, summarize_evidence
+from .report import validate_report
 from .schema import ContractError, PatientPrediction
 
 EVIDENCE_FIELDS = ("schema_version", "patient_id", "predictions", "top_features", "clinical_context", "response_definition")
 RESULT_FIELDS = set(EVIDENCE_FIELDS) | {"narrative", "narrative_source", "review_required", "limitations", "comparison", "quality", "provenance"}
 RUN_ARTIFACTS = ("narratives.jsonl", "narratives.csv", "report.md", "manifest.json", "metrics.json")
-SOURCE_QUALITY = {"mock": "mock", "vllm": "passed", "fallback": "fallback"}
+SOURCE_QUALITY = {"mock": "mock", "vllm": "passed", "transformers": "passed", "fallback": "fallback"}
+RUN_BACKENDS = {"mock", "vllm", "transformers"}
 
 
 def _text(value, name, *, limit=20_000):
@@ -51,14 +53,13 @@ def _validate_result(value, backend, gap_threshold):
     if value["review_required"] is not True:
         raise ContractError("result review_required must be true")
     _text(value["narrative"], "result narrative")
-    prefix, suffix = score_sentence(patient) + " ", " " + REVIEW_SENTENCE
-    if not value["narrative"].startswith(prefix) or not value["narrative"].endswith(suffix):
-        raise ContractError("result narrative factual prefix or review sentence conflicts with canonical evidence")
+    if not validate_report(value["narrative"], patient):
+        raise ContractError("result report scores, sections or review sentence conflict with canonical evidence")
     _strings(value["limitations"], "result limitations", nonempty=True)
     source = value["narrative_source"]
     if not isinstance(source, str) or source not in SOURCE_QUALITY:
-        raise ContractError("result narrative_source must be mock, vllm, or fallback")
-    if (backend == "mock") != (source == "mock"):
+        raise ContractError("result narrative_source must be mock, vllm, transformers, or fallback")
+    if (backend == "mock") != (source == "mock") or (source not in {"mock", "fallback"} and source != backend):
         raise ContractError("result narrative source conflicts with the run backend")
     quality = value["quality"]
     if not isinstance(quality, dict) or set(quality) != {"status", "issues", "screen"}:
@@ -120,8 +121,8 @@ def read_run(run):
     if not isinstance(fingerprint, str) or not re.fullmatch(r"[0-9a-f]{64}", fingerprint):
         raise ContractError("run manifest requires a valid input_sha256")
     backend_info = manifest.get("backend")
-    if not isinstance(backend_info, dict) or not isinstance(backend_info.get("backend"), str) or backend_info["backend"] not in {"mock", "vllm"}:
-        raise ContractError("run manifest backend must be mock or vllm")
+    if not isinstance(backend_info, dict) or not isinstance(backend_info.get("backend"), str) or backend_info["backend"] not in RUN_BACKENDS:
+        raise ContractError("run manifest backend must be mock, vllm, or transformers")
     gap_threshold = _finite(manifest.get("disagreement_threshold"), "run disagreement_threshold")
     if not 0 < gap_threshold <= 1:
         raise ContractError("run disagreement_threshold must be in (0, 1]")

@@ -1,0 +1,8 @@
+# Local MVP runtime for macOS Apple Silicon (MPS) or CPU; installed by run_local_mvp.sh.
+# Same model snapshot and Transformers/Hub pins as the HPC vLLM environment,
+# without vLLM/CUDA. Streamlit matches requirements-demo.txt.
+torch==2.8.0
+transformers==4.55.2
+huggingface-hub==0.34.4
+truststore==0.10.4
+streamlit==1.65.0

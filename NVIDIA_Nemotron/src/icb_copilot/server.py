@@ -43,7 +43,7 @@ def create_server(copilot: Copilot, host: str = "127.0.0.1", port: int = 8000) -
         def do_GET(self):
             if self.path == "/health":
                 self.send_json(200, {"status": "ok", "backend": copilot.backend, "schema_version": "1.0",
-                                    "model_loaded": bool(copilot._engine and copilot._engine._llm)})
+                                    "model_loaded": copilot.metadata.get("execution", {}).get("model_loaded", False)})
             else:
                 self.send_json(404, {"error": "unknown endpoint"})
 

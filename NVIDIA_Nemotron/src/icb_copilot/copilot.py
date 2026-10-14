@@ -1,4 +1,4 @@
-"""Grounded facts plus screened narrative text for the hackathon research demo."""
+"""Structured patient reports: grounded facts plus screened model prose for the hackathon research demo."""
 from __future__ import annotations
 
 import json
@@ -6,12 +6,13 @@ import re
 import threading
 from typing import Callable
 
-from .backends import PROMPT_VERSION, VLLMBackend, build_messages
-from .prompts import PROMPT_SHA256
+from .backends import PROMPT_VERSION, TransformersBackend, VLLMBackend, build_messages
+from .prompts import PROMPT_SHA256, REPLY_FIELDS
+from .report import fallback_sections, hypothesis, plain_name, render_report
 from .schema import MODALITIES, ContractError, PatientPrediction
 
-DISPLAY = {"clinical": "clinical", "mif": "spatial mIF", "fused": "fused"}
-REVIEW_SENTENCE = "Research output requires independent clinical review and does not establish treatment benefit."
+# Real local model engines; each is also the narrative_source of its accepted generations.
+GENERATIVE_BACKENDS = {"vllm": VLLMBackend, "transformers": TransformersBackend}
 
 
 def summarize_evidence(patient: dict, *, disagreement_threshold: float = 0.20) -> tuple[dict, list[str]]:
@@ -45,36 +46,6 @@ def summarize_evidence(patient: dict, *, disagreement_threshold: float = 0.20) -
             "threshold_disagreement": threshold_disagreement, "predicted_classes": classes}, limitations
 
 
-def score_sentence(patient: dict) -> str:
-    scores = ", ".join(f"{DISPLAY[m]} {patient['predictions'][m]['probability']:.3f}"
-                       for m in MODALITIES if m in patient["predictions"])
-    evidence = []
-    for modality in MODALITIES:
-        # Keep the narrative concise; the complete feature list remains in the
-        # structured result for the patient selector and audit.
-        for feature in patient["top_features"].get(modality, [])[:2]:
-            value = json.dumps(feature["value"], ensure_ascii=False) if not isinstance(feature["value"], str) else feature["value"]
-            value = value[:64] + ("…" if len(value) > 64 else "")
-            unit = " " + feature["unit"] if feature["unit"] else ""
-            detail = f"{DISPLAY[modality]} {feature['feature']}={value}{unit} (measurement: {feature['direction']})"
-            if feature["attribution"]:
-                attribution = feature["attribution"]
-                detail += f" [supplied {attribution['method']} attribution {attribution['value']:+.3g} {attribution['scale']}]"
-            evidence.append(detail)
-    suffix = "; supplied features include " + "; ".join(evidence) if evidence else ""
-    return f"Supplied ICB responder model scores are {scores}{suffix}."
-
-
-def fallback_interpretation(patient: dict, comparison: dict) -> str:
-    if comparison["score_disagreement"] or comparison["threshold_disagreement"]:
-        first = "Clinical and spatial mIF predictions are discordant and warrant review of the supplied evidence."
-    elif all(m in patient["predictions"] for m in ("clinical", "mif")):
-        first = "Clinical and spatial mIF predictions provide complementary tabular and tissue evidence for review."
-    else:
-        first = "Only the supplied modality predictions can be interpreted; missing evidence limits multimodal comparison."
-    return first + " Feature measurements and model attributions should be reviewed separately; neither establishes a causal treatment effect."
-
-
 def _strict_json(text: str) -> dict:
     def pairs(items):
         result = {}
@@ -87,59 +58,155 @@ def _strict_json(text: str) -> dict:
                       parse_constant=lambda value: (_ for _ in ()).throw(ValueError("nonfinite JSON number")))
 
 
-def screen_narrative(raw: str, *, comparison: dict | None = None) -> tuple[str | None, list[str]]:
-    """Heuristic screen only: passing does not imply clinical correctness."""
-    issues = []
-    if not isinstance(raw, str) or len(raw) > 5000:
-        return None, ["invalid_generation_size"]
-    try:
-        obj = _strict_json(raw)
-    except (ValueError, TypeError):
-        return None, ["invalid_generation_json"]
-    if not isinstance(obj, dict) or set(obj) != {"interpretation"} or not isinstance(obj["interpretation"], str):
+_MODALITY = {"clinical": "clinical", "spatial mif": "mif", "mif": "mif", "tissue": "mif", "fused": "fused", "combined": "fused"}
+# "clinical features", "tissue resection" and similar phrases name evidence, not a model's score.
+_NOT_MODALITY = (r"(?!\s+(?:features?|attributions?|variables?|measurements?|data|context|review|information|notes?"
+                 r"|literature|findings?|contrasts?|factors?|history|resection|covariates?|sampling))")
+_SIDE_CLAIM = (r"\b(?:favou?r\w*|support\w*|point\w*(?:\s+to(?:wards?)?)?|lean\w*(?:\s+towards?)?"
+               r"|push\w*(?:\s+\S+){0,4}?\s+towards?|towards?)\s+(?:the\s+|a\s+)?(?P<side>non-?respon\w*|respon\w*)")
+_CLAUSE = re.compile(r"[,:]|\b(?:while|whereas|but|although|though|however|yet)\b")
+_SENTENCE = re.compile(r"[.;!?]\s")
+_MARKERS = re.compile(r"\b(?:anti-)?(?:cd\d{1,3}[a-z]?|pd-?l?1|ctla-?4|lag-?3|sox10|m1[a-d])\+?", re.I)
+_FORBIDDEN = [r"\b(recommend\w*|prescrib\w*|dos(?:e|es|ing|age)|administer\w*|mg)\b",
+              r"\b(start|stop|switch|continue|initiate|discontinue|escalate|select|choose|offer)\b.{0,50}"
+              r"\b(therapy|treatment|drug|pembrolizumab|ipilimumab|nivolumab|immunotherapy)\b",
+              r"\b(should|must)\b.{0,40}\b(receive|be treated|be given|start|stop)\b",
+              r"\bwill\s+(?:not\s+)?(?:respond|benefit|survive|progress|relapse)\b",
+              r"\b(guarantee\w*|cure[sd]?|curative|definitive\w*|definitely|certainly|proves?|proven|causal|causes?)\b",
+              r"\b(outperform\w*|superior)\b", r"\b(trial matching|eligible for|eligibility|enrol\w*)\b"]
+
+
+def _side(word: str) -> int:
+    return 0 if word.startswith("non") else 1
+
+
+def report_contradictions(sections: dict, patient: dict, comparison: dict) -> list[str]:
+    """Reject generated prose that contradicts the scores, attributions or hypothesis the application computed.
+
+    Small models restate example templates with the wrong sides; these clause-level
+    heuristics catch such statements. Passing them does not prove the text correct.
+    """
+    classes = comparison["predicted_classes"]
+    hyp = hypothesis(comparison)
+    # Clinical feature names map to their attribution sign; None means no direction was supplied.
+    signs = {}
+    for feature in patient["top_features"].get("clinical", []):
+        attribution = feature["attribution"]
+        sign = int(attribution["value"] > 0) if attribution and attribution["value"] != 0 else None
+        for alias in {feature["feature"], plain_name(feature["feature"]), re.sub(r"\s*\(.*?\)", "", feature["feature"])}:
+            signs[alias.lower().strip()] = sign
+    features = "|".join(re.escape(alias) for alias in sorted(signs, key=len, reverse=True))
+    claim = re.compile((rf"(?P<feature>{features})|" if features else "")
+                       + r"\bjoins? the (?P<joined>clinical|spatial mif|mif|tissue) side\b|(?P<both>\bsame side as both\b)"
+                       + rf"|\b(?P<modality>clinical|spatial mif|mif|tissue|fused|combined)\b{_NOT_MODALITY}"
+                       + r"|\b(?P<threshold>above|below)\b|" + _SIDE_CLAIM)
+    text = " ".join(sections.values()).lower()
+    wrong = False
+    if comparison["threshold_disagreement"]:
+        wrong = bool(re.search(r"\b(?:models|scores|modalities|they)\s+(?:\w+\s+)?(?<!not )agree\b|\bin agreement\b", text))
+    elif not comparison["score_disagreement"]:
+        wrong = bool(re.search(r"(?<!not )(?<!no )\b(?:disagree\w*|discordan\w*|conflict\w*)", text))
+    for sentence in _SENTENCE.split(text):
+        for clause in _CLAUSE.split(sentence):
+            if re.search(r"\b(?:missing|unavailable|absent|never supplied|not supplied)\b", clause):
+                wrong = wrong or any(_MODALITY[name] in classes for name in re.findall(r"\b(?:spatial mif|mif|fused)\b", clause))
+            if re.search(r"\bhypothes[ie]s\b", clause) and not re.search(r"\bno (?:strong|clear|firm)\b|\bnot (?:a )?(?:strong|clear)\b", clause):
+                claimed = {_side(word) for word in re.findall(r"\b(non-?responders?|responders?)\b(?!\s+thresholds?)", clause)}
+                if hyp["side"] is not None:
+                    wrong = wrong or bool(claimed - {hyp["side"]})
+                elif claimed:
+                    tentative = re.search(r"\b(weak|tentative|leaning|tendency)\b", clause)
+                    wrong = wrong or not tentative or claimed != {hyp["tendency"]}
+            if re.search(r"\b(?:tendency|tends?)\b", clause) and not claim.search(re.sub(_SIDE_CLAIM, "", clause)):
+                claimed = {_side(word) for word in re.findall(r"\b(non-?respon\w*|respon\w*)\b(?!\s+thresholds?)", clause)}
+                wrong = wrong or bool(claimed and claimed != {hyp["tendency"]})
+            # A feature with a signed attribution must not be described as having no direction.
+            if re.search(r"\b(?:cannot be assigned|no signed attribution|not supplied|no direction|without a direction)\b", clause):
+                named = [match["feature"] for match in claim.finditer(clause) if match.groupdict().get("feature")]
+                wrong = wrong or any(signs[name] is not None for name in named)
+            pending_features, pending_modalities = [], []
+            for match in claim.finditer(clause):
+                if match.groupdict().get("feature"):
+                    pending_features.append(signs[match["feature"]])
+                    continue
+                if match["modality"]:
+                    pending_modalities.append(_MODALITY[match["modality"]])
+                    continue
+                if match["joined"]:
+                    checks = [("fused", classes.get(_MODALITY[match["joined"]]))]
+                elif match["both"]:
+                    checks = [("fused", classes.get("clinical")), ("fused", classes.get("mif"))]
+                elif match["threshold"]:
+                    checks = [(m, int(match["threshold"] == "above")) for m in pending_modalities]
+                elif pending_features:
+                    wrong = wrong or any(sign != _side(match["side"]) for sign in pending_features)
+                    checks = []
+                else:
+                    checks = [(m, _side(match["side"])) for m in pending_modalities]
+                wrong = wrong or any(classes.get(m) is None or classes[m] != side for m, side in checks)
+                pending_features, pending_modalities = [], []
+    return ["contradicts_supplied_comparison"] if wrong else []
+
+
+def screen_report(replies: dict, *, patient: dict, comparison: dict) -> tuple[dict | None, list[str]]:
+    """Heuristic screen of the generated report parts, one raw `{"text": ...}` reply per part.
+
+    Passing does not imply clinical correctness.
+    """
+    if not isinstance(replies, dict) or set(replies) != set(REPLY_FIELDS):
         return None, ["invalid_generation_schema"]
-    text = obj["interpretation"].strip()
-    if not 40 <= len(text) <= 1200:
-        issues.append("invalid_narrative_length")
-    if re.search(r"\d|%", text):
+    sections = {}
+    for field in REPLY_FIELDS:
+        raw = replies[field]
+        if not isinstance(raw, str) or len(raw) > 3000:
+            return None, ["invalid_generation_size"]
+        try:
+            obj = _strict_json(raw)
+        except (ValueError, TypeError):
+            return None, ["invalid_generation_json"]
+        if not isinstance(obj, dict) or set(obj) != {"text"} or not isinstance(obj["text"], str):
+            return None, ["invalid_generation_schema"]
+        sections[field] = " ".join(obj["text"].split())
+    issues = []
+    if not all(30 <= len(text) <= 900 for text in sections.values()):
+        issues.append("invalid_section_length")
+    text = " ".join(sections.values())
+    # Numbers come only from the application; supplied feature and marker names may contain digits.
+    scrubbed = text
+    for feature in (f for features in patient["top_features"].values() for f in features):
+        for name in (feature["feature"], plain_name(feature["feature"])):
+            scrubbed = re.sub(re.escape(name), " ", scrubbed, flags=re.I)
+    scrubbed = _MARKERS.sub(" ", scrubbed)
+    if re.search(r"\d|%", scrubbed):
         issues.append("generated_numeric_claim")
     if re.search(r"<|>|```|https?://|www\.|\[|\]|\b(system|assistant|ignore previous|ignore instructions)\b", text, re.I):
         issues.append("generated_instruction_or_markup")
-    # Conservative lexical screen; negated language can also fall back safely.
-    forbidden = [r"\b(recommend\w*|prescrib\w*|dose\w*|dosage|mg|administer\w*)\b",
-                 r"\b(start|stop|switch|continue|initiate|discontinue|select|choose)\b.{0,50}\b(therapy|treatment|drug|pembrolizumab|ipilimumab|nivolumab)\b",
-                 r"\b(should|must|will)\b.{0,50}\b(respond|receive|benefit|survive|remission)\b",
-                 r"\b(guarantee\w*|cure\w*|definit\w*|diagnos\w*|prognosis|outperform\w*|superior|proves?|causes?|causal)\b",
-                 r"\b(improv\w*|increas\w*|decreas\w*)\b.{0,40}\b(accuracy|survival|outcomes?|response|benefit)\b",
-                 r"\b(trial matching|eligible for|clinical trial|likely responder|non-responder|nonresponder)\b"]
-    if any(re.search(pattern, text, re.I | re.S) for pattern in forbidden):
+    if any(re.search(pattern, scrubbed, re.I | re.S) for pattern in _FORBIDDEN):
         issues.append("unsupported_clinical_or_performance_claim")
-    if re.search(r"\b(high|low|elevated)\b.{0,60}\b(driv\w*|favors?|predict\w*|suggest\w*|indicat\w*)\b", text, re.I):
-        issues.append("measurement_direction_used_as_effect")
-    if re.search(r"\b(patient|tumou?r)\b.{0,30}\b(has|have|is|shows|demonstrates|exhibits|suffers)\b|"
-                 r"\b(metastatic|mutation\w*|resistance|sensitivity|prognostic|immune infiltration)\b", text, re.I):
-        issues.append("generated_patient_or_biological_claim")
-    if comparison is not None:
-        disagreement = comparison["score_disagreement"] or comparison["threshold_disagreement"]
-        mentions_disagreement = bool(re.search(r"\b(disagree\w*|discordant|conflict\w*)\b", text, re.I))
-        denies_disagreement = bool(re.search(r"\b(?:do not|does not|no|without(?: a)?(?: flagged)?)\s+(?:disagree\w*|discordance|conflict\w*)\b", text, re.I))
-        if disagreement and (not mentions_disagreement or denies_disagreement):
+    framing = sections["prediction_summary"] + " " + sections["conclusion"]
+    if comparison["score_disagreement"] or comparison["threshold_disagreement"]:
+        mentions = re.search(r"\b(disagree\w*|discordan\w*|conflict\w*|differ\w*|split|uneven)\b", framing, re.I)
+        denies = re.search(r"\b(?:do not|does not|no|without(?: a)?(?: flagged)?)\s+(?:disagree\w*|discordance|conflict\w*)\b", framing, re.I)
+        if not mentions or denies:
             issues.append("missing_disagreement_context")
-        if comparison["missing_modalities"] and not re.search(r"\b(missing|unavailable|absent)\b", text, re.I):
-            issues.append("missing_modality_context")
-    return (None, issues) if issues else (text, [])
+    if comparison["missing_modalities"] and not re.search(r"\b(missing|unavailable|absent|not available)\b", text, re.I):
+        issues.append("missing_modality_context")
+    if re.search(r"\btowards? (?:not supplied|none supplied|no direction|cannot)\b", text, re.I):
+        issues.append("garbled_feature_direction")
+    issues.extend(report_contradictions(sections, patient, comparison))
+    return (None, issues) if issues else (sections, [])
 
 
 class Copilot:
-    """Reuse one instance per process. Mock is explicit; vLLM never silently becomes mock.
+    """Reuse one instance per process. Mock is explicit; a model backend never silently becomes mock.
 
     generator, when provided, receives a list of chat conversations and returns
     a corresponding list of JSON strings. It is intended for offline tests.
     """
     def __init__(self, backend: str = "vllm", model_path: str | None = None, *,
                  generator: Callable | None = None, disagreement_threshold: float = 0.20, **settings):
-        if backend not in {"mock", "vllm"}:
-            raise ValueError("backend must be mock or vllm")
+        if backend != "mock" and backend not in GENERATIVE_BACKENDS:
+            raise ValueError("backend must be mock, vllm, or transformers")
         if not 0 < disagreement_threshold <= 1:
             raise ValueError("disagreement_threshold must be in (0, 1]")
         if backend == "mock" and (generator is not None or settings):
@@ -148,10 +215,10 @@ class Copilot:
         self.disagreement_threshold = disagreement_threshold
         self._generator = generator
         self._engine = None
-        if backend == "vllm" and generator is None:
+        if backend in GENERATIVE_BACKENDS and generator is None:
             if model_path is None:
-                raise ValueError("vllm requires model_path for a local prepared snapshot")
-            self._engine = VLLMBackend(model_path, **settings)
+                raise ValueError(f"{backend} requires model_path for a local prepared snapshot")
+            self._engine = GENERATIVE_BACKENDS[backend](model_path, **settings)
         self._lock = threading.Lock()
 
     @property
@@ -173,28 +240,33 @@ class Copilot:
             return []
         summaries = [summarize_evidence(p, disagreement_threshold=self.disagreement_threshold) for p in normalized]
         raw = []
-        if self.backend == "vllm":
+        if self.backend != "mock":
+            # One short conversation per report part keeps the small model's prompts focused.
+            conversations = [build_messages(p, comparison=s[0], field=field)
+                             for p, s in zip(normalized, summaries) for field in REPLY_FIELDS]
             with self._lock:
                 generate = self._generator or self._engine.generate
-                raw = generate([build_messages(p, comparison=s[0]) for p, s in zip(normalized, summaries)])
-            if not isinstance(raw, list) or len(raw) != len(normalized):
+                replies = generate(conversations)
+            if not isinstance(replies, list) or len(replies) != len(conversations):
                 raise RuntimeError("backend output count does not match input count")
+            parts = len(REPLY_FIELDS)
+            raw = [dict(zip(REPLY_FIELDS, replies[i * parts:(i + 1) * parts])) for i in range(len(normalized))]
         results = []
         for i, patient in enumerate(normalized):
             comparison, limitations = summaries[i]
             if self.backend == "mock":
-                interpretation, issues, source, status = fallback_interpretation(patient, comparison), [], "mock", "mock"
+                sections, issues, source, status = fallback_sections(patient, comparison), [], "mock", "mock"
                 limitations.insert(0, "Synthetic narrative from the mock backend; no language model was executed.")
             else:
-                interpretation, issues = screen_narrative(raw[i], comparison=comparison)
-                source, status = "vllm", "passed"
-                if interpretation is None:
-                    interpretation = fallback_interpretation(patient, comparison)
+                sections, issues = screen_report(raw[i], patient=patient, comparison=comparison)
+                source, status = self.backend, "passed"
+                if sections is None:
+                    sections = fallback_sections(patient, comparison)
                     source, status = "fallback", "fallback"
-                    limitations.insert(0, "Generated text failed the automated screen; a deterministic evidence summary is shown.")
+                    limitations.insert(0, "Generated text failed the automated screen; deterministic report text is shown.")
             if generation_review is not None:
                 generation_review.append({"patient_id": patient["patient_id"],
-                    "raw_generation": raw[i] if self.backend == "vllm" else None,
+                    "raw_generation": json.dumps(raw[i], ensure_ascii=True) if self.backend != "mock" else None,
                     "narrative_source": source, "screen_status": status, "screen_issues": issues,
                     "prompt_version": PROMPT_VERSION, "prompt_sha256": PROMPT_SHA256})
             results.append({
@@ -202,7 +274,7 @@ class Copilot:
                 "predictions": patient["predictions"], "top_features": patient["top_features"],
                 "clinical_context": patient["clinical_context"],
                 "response_definition": patient["response_definition"],
-                "narrative": score_sentence(patient) + " " + interpretation + " " + REVIEW_SENTENCE,
+                "narrative": render_report(patient, comparison, sections),
                 "narrative_source": source, "review_required": True, "limitations": limitations,
                 "comparison": comparison,
                 "quality": {"status": status, "issues": issues, "screen": "heuristic; human review required"},

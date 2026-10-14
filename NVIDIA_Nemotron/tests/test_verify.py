@@ -7,7 +7,7 @@ import unittest
 from icb_copilot.copilot import Copilot
 from icb_copilot.experiment import run_experiment
 from icb_copilot.verify import verify_run
-from helpers import prediction
+from helpers import generator, prediction
 
 
 class VerificationTests(unittest.TestCase):
@@ -71,8 +71,7 @@ class VerificationTests(unittest.TestCase):
         self.assertIn("invalid_run_artifact", verify_run(self.source, self.output)["errors"][0])
 
     def test_injected_generator_is_not_gpu_evidence(self):
-        text = json.dumps({"interpretation": "The modalities provide complementary evidence for review. Independent assessment is required."})
-        self.generate(Copilot(backend="vllm", generator=lambda messages: [text] * len(messages)))
+        self.generate(Copilot(backend="vllm", generator=generator()))
         report = verify_run(self.source, self.output, require_vllm=True)
         self.assertFalse(report["ok"])
         self.assertTrue(report["checks"]["all_generated_narratives_accepted"])
@@ -89,13 +88,30 @@ class VerificationTests(unittest.TestCase):
 
     def test_real_execution_metadata_with_accepted_output_passes_acceptance(self):
         # Artifact fixture only; this test does not execute vLLM or claim GPU validation.
-        text = json.dumps({"interpretation": "The modalities provide complementary evidence for review. Independent assessment is required."})
-        self.generate(Copilot(backend="vllm", generator=lambda messages: [text] * len(messages)))
+        self.generate(Copilot(backend="vllm", generator=generator()))
         self.rewrite("manifest.json", lambda m: m.update(backend={"backend": "vllm", "execution": {
             "model_loaded": True, "generation_calls": 1, "generated_records": 1}}))
         self.rewrite("narratives.jsonl", lambda r: r["provenance"].pop("generator"))
         report = verify_run(self.source, self.output, require_vllm=True, require_synthetic=True)
         self.assertTrue(report["ok"], report)
+
+    def test_local_transformers_execution_passes_only_its_own_acceptance(self):
+        # Artifact fixture only; this test does not load the model.
+        self.generate(Copilot(backend="transformers", generator=generator()))
+        self.rewrite("manifest.json", lambda m: m.update(backend={"backend": "transformers", "execution": {
+            "model_loaded": True, "device": "mps", "generation_calls": 1, "generated_records": 1}}))
+        self.rewrite("narratives.jsonl", lambda r: r["provenance"].pop("generator"))
+        report = verify_run(self.source, self.output, require_backend="transformers", require_synthetic=True)
+        self.assertTrue(report["ok"], report)
+        self.assertTrue(report["checks"]["local_transformers_executed"])
+        vllm = verify_run(self.source, self.output, require_vllm=True)
+        self.assertFalse(vllm["ok"])
+        self.assertIn("local_vllm_executed", vllm["errors"])
+
+    def test_generation_source_cannot_be_relabeled_as_another_backend(self):
+        self.generate(Copilot(backend="transformers", generator=generator()))
+        self.rewrite("manifest.json", lambda m: m.update(backend={"backend": "vllm"}))
+        self.assertIn("invalid_run_artifact", verify_run(self.source, self.output)["errors"][0])
 
     def test_real_patient_partition_fails_synthetic_requirement(self):
         patient = json.loads(self.source.read_text())

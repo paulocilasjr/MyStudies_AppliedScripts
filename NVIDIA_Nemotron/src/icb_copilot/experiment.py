@@ -87,7 +87,9 @@ def run_experiment(input_path: str | Path, output_dir: str | Path, copilot: Copi
                  "Research interpretation only. Every narrative requires human review. Automated screening does not verify clinical correctness.", "",
                  "## Prediction evaluation", "", "See metrics.json for matched held-out comparisons; unlabeled or synthetic inputs are excluded.", ""]
         for result in results:
-            lines.extend([f"## {_markdown(result['patient_id'])}", "", _markdown(result["narrative"]), "",
+            # The structured report is shown verbatim as text, so no producer string is rendered as Markdown.
+            report = result["narrative"].replace("`", "'")
+            lines.extend([f"## {_markdown(result['patient_id'])}", "", "```text", report, "```", "",
                           f"Source: {result['narrative_source']}; quality: {result['quality']['status']}; review required: true.", ""])
             lines.extend("- " + _markdown(limitation) for limitation in result["limitations"])
             lines.append("")

@@ -1,0 +1,212 @@
+{
+  "schema_version": "1.0",
+  "review_status": "Curated for the hackathon demo from the cited sources; verify each note against its source before using it in a manuscript or clinical discussion. Entries are matched to supplied feature names in order; the first match wins.",
+  "sources": {
+    "pybus2026": {
+      "short": "Pybus et al. 2026",
+      "citation": "Pybus A, Kirchgaessner R, Nguyen J, et al. Predicting anti-PD-1 immune checkpoint blockade response in melanoma patients with spatially aware machine learning models. npj Precis Oncol. 2026;10:56. doi:10.1038/s41698-025-01250-8"
+    },
+    "tumeh2014": {
+      "short": "Tumeh et al. 2014",
+      "citation": "Tumeh PC, Harview CL, Yearley JH, et al. PD-1 blockade induces responses by inhibiting adaptive immune resistance. Nature. 2014;515:568-571."
+    },
+    "tumeh2017": {
+      "short": "Tumeh et al. 2017",
+      "citation": "Tumeh PC, Hellmann MD, Hamid O, et al. Liver metastasis and treatment outcome with anti-PD-1 monoclonal antibody in patients with melanoma and NSCLC. Cancer Immunol Res. 2017;5:417-424."
+    },
+    "cabrita2020": {
+      "short": "Cabrita et al. 2020",
+      "citation": "Cabrita R, Lauss M, Sanna A, et al. Tertiary lymphoid structures improve immunotherapy and survival in melanoma. Nature. 2020;577:561-565."
+    },
+    "helmink2020": {
+      "short": "Helmink et al. 2020",
+      "citation": "Helmink BA, Reddy SM, Gao J, et al. B cells and tertiary lymphoid structures promote immunotherapy response. Nature. 2020;577:549-555."
+    },
+    "weide2016": {
+      "short": "Weide et al. 2016",
+      "citation": "Weide B, Martens A, Hassel JC, et al. Baseline biomarkers for outcome of melanoma patients treated with pembrolizumab. Clin Cancer Res. 2016;22:5487-5496."
+    },
+    "gershenwald2017": {
+      "short": "Gershenwald et al. 2017",
+      "citation": "Gershenwald JE, Scolyer RA, Hess KR, et al. Melanoma staging: evidence-based changes in the American Joint Committee on Cancer eighth edition cancer staging manual. CA Cancer J Clin. 2017;67:472-492."
+    },
+    "atkins2023": {
+      "short": "Atkins et al. 2023 (DREAMseq)",
+      "citation": "Atkins MB, Lee SJ, Chmielowski B, et al. Combination dabrafenib and trametinib versus combination nivolumab and ipilimumab for patients with advanced BRAF-mutant melanoma: the DREAMseq trial (ECOG-ACRIN EA6134). J Clin Oncol. 2023;41:186-197."
+    },
+    "conforti2018": {
+      "short": "Conforti et al. 2018",
+      "citation": "Conforti F, Pala L, Bagnardi V, et al. Cancer immunotherapy efficacy and patients' sex: a systematic review and meta-analysis. Lancet Oncol. 2018;19:737-746."
+    },
+    "ribas2015": {
+      "short": "Ribas et al. 2015 (KEYNOTE-002)",
+      "citation": "Ribas A, Puzanov I, Dummer R, et al. Pembrolizumab versus investigator-choice chemotherapy for ipilimumab-refractory melanoma (KEYNOTE-002): a randomised, controlled, phase 2 trial. Lancet Oncol. 2015;16:908-918."
+    },
+    "weber2015": {
+      "short": "Weber et al. 2015 (CheckMate 037)",
+      "citation": "Weber JS, D'Angelo SP, Minor D, et al. Nivolumab versus chemotherapy in patients with advanced melanoma who progressed after anti-CTLA-4 treatment (CheckMate 037): a randomised, controlled, open-label, phase 3 trial. Lancet Oncol. 2015;16:375-384."
+    }
+  },
+  "features": [
+    {
+      "modality": "clinical",
+      "match": "prior.*(targeted|braf|mek)|targeted therapy",
+      "gist": "prior BRAF/MEK-targeted therapy is linked to poorer later checkpoint results",
+      "note": "Prior BRAF/MEK-targeted therapy has been associated with poorer results from later checkpoint blockade; in the DREAMseq trial, starting with combination checkpoint blockade gave longer overall survival than starting with BRAF/MEK inhibitors.",
+      "direction": "leans non-responder when present",
+      "sources": [
+        "atkins2023"
+      ]
+    },
+    {
+      "modality": "clinical",
+      "match": "lung met",
+      "gist": "lung-only spread carries a better prognosis than other visceral spread",
+      "note": "In AJCC eighth-edition staging, distant spread limited to the lung carries a better prognosis than other visceral or brain disease, and under pembrolizumab the absence of metastases beyond soft tissue and lung was associated with longer survival.",
+      "direction": "relatively favourable compared with other visceral sites",
+      "sources": [
+        "gershenwald2017",
+        "weide2016"
+      ]
+    },
+    {
+      "modality": "clinical",
+      "match": "metastatic stage|m[ -]?stage|m category",
+      "gist": "a higher metastatic stage means greater disease extent and worse prognosis",
+      "note": "A higher AJCC M category, meaning visceral or brain spread, reflects greater disease extent and worse prognosis; it is prognostic rather than a validated predictor of anti-PD-1 response.",
+      "direction": "leans non-responder at higher stage",
+      "sources": [
+        "gershenwald2017",
+        "weide2016"
+      ]
+    },
+    {
+      "modality": "clinical",
+      "match": "gender|\\bsex\\b",
+      "gist": "a larger checkpoint benefit reported in men is debated",
+      "note": "A meta-analysis reported a larger relative benefit from checkpoint inhibitors in men than in women, but the finding is debated and sex is not an established predictor of response.",
+      "direction": "uncertain; a possible modest male advantage",
+      "sources": [
+        "conforti2018"
+      ]
+    },
+    {
+      "modality": "clinical",
+      "match": "resection|biopsy type|core biopsy",
+      "gist": "how the tissue was sampled, not tumour biology",
+      "note": "This records how the tissue was sampled, surgical resection versus core biopsy, not tumour biology; in the foundation study the only misclassified patient was a core biopsy with few immune-rich tiles, so sampling can affect tissue-based scores.",
+      "direction": "technical sampling factor, not biological",
+      "sources": [
+        "pybus2026"
+      ]
+    },
+    {
+      "modality": "clinical",
+      "match": "\\bldh\\b|lactate dehydrogenase",
+      "gist": "elevated lactate dehydrogenase is an adverse prognostic factor",
+      "note": "Elevated serum lactate dehydrogenase is an established adverse prognostic factor in metastatic melanoma, is part of AJCC M staging, and was associated with shorter survival under pembrolizumab.",
+      "direction": "leans non-responder when elevated",
+      "sources": [
+        "gershenwald2017",
+        "weide2016"
+      ]
+    },
+    {
+      "modality": "clinical",
+      "match": "ipilimumab|anti-?ctla",
+      "gist": "prior ipilimumab does not exclude response to anti-PD-1 therapy",
+      "note": "Anti-PD-1 therapy remains active after progression on ipilimumab in randomised trials of pembrolizumab and nivolumab, so prior anti-CTLA-4 exposure does not exclude response.",
+      "direction": "does not exclude response",
+      "sources": [
+        "ribas2015",
+        "weber2015"
+      ]
+    },
+    {
+      "modality": "mif",
+      "match": "cd8.*inos|inos.*cd8",
+      "note": "CD8+ iNOS+ cells were more frequent in responder tiles in the foundation study, where iNOS expression in cytotoxic T cells was among the features associated with anti-PD-1 response.",
+      "direction": "leans responder in the foundation cohort",
+      "sources": [
+        "pybus2026"
+      ]
+    },
+    {
+      "modality": "mif",
+      "match": "cd3\\+?\\s*cd8\\+?\\s*pd-?l1\\+?\\s*proportion",
+      "note": "PD-L1+ and CD8+ cells were most frequent in the immunoreactive responders of the foundation study, but PD-L1 positivity alone did not separate responders from non-responders, and CD3+CD8+PD-L1+ cells clustered together more in non-responder tiles.",
+      "direction": "mixed in the foundation cohort",
+      "sources": [
+        "pybus2026"
+      ]
+    },
+    {
+      "modality": "mif",
+      "match": "(cd8|cytotoxic).*pd-?l1|pd-?l1.*(cd8|cytotoxic)",
+      "note": "Responders in the foundation study showed stronger co-occurrence of CD8+ T cells with PD-L1+ and LAG-3+ cells, and earlier work linked CD8+ T cells and PD-1/PD-L1 contacts at the invasive tumour margin to anti-PD-1 response.",
+      "direction": "leans responder",
+      "sources": [
+        "pybus2026",
+        "tumeh2014"
+      ]
+    },
+    {
+      "modality": "mif",
+      "match": "cd20|b/t cell|\\bb cell",
+      "note": "In the foundation study, CD3+CD20+ cells were more frequent in non-responder tiles and B- and T-cell markers co-occurred more strongly in non-responders, possibly reflecting a suppressive B-cell role without tertiary lymphoid structures; elsewhere, B cells organised in tertiary lymphoid structures were associated with checkpoint response.",
+      "direction": "leans non-responder in the foundation cohort; context-dependent elsewhere",
+      "sources": [
+        "pybus2026",
+        "cabrita2020",
+        "helmink2020"
+      ]
+    },
+    {
+      "modality": "mif",
+      "match": "inos",
+      "note": "In the foundation study, iNOS+ cells and iNOS+ melanoma cells were more frequent in responder tiles, but nitric oxide has both anti- and pro-tumour roles and some iNOS+ clustering patterns were greater in non-responders.",
+      "direction": "mixed, leaning responder in the foundation cohort",
+      "sources": [
+        "pybus2026"
+      ]
+    },
+    {
+      "modality": "mif",
+      "match": "nnos",
+      "note": "nNOS was measured to study the dual role of nitric oxide in melanoma; the foundation study did not report nNOS+ melanoma cells as a standalone predictor of response.",
+      "direction": "not established",
+      "sources": [
+        "pybus2026"
+      ]
+    },
+    {
+      "modality": "mif",
+      "match": "biopsy site|sampling site|collection site",
+      "note": "A sampling-site covariate rather than tissue biology; the foundation study listed varied collection sites as a limitation, and distant visceral disease, particularly in the liver, has been associated with reduced anti-PD-1 benefit.",
+      "direction": "technical covariate",
+      "sources": [
+        "pybus2026",
+        "tumeh2017"
+      ]
+    },
+    {
+      "modality": "mif",
+      "match": "cd8|cytotoxic",
+      "note": "Cytotoxic T-cell density at the invasive tumour margin was associated with response to pembrolizumab, and in the foundation study CD8+ clustering was greater in responder tiles and models restricted to CD8-rich tiles performed best.",
+      "direction": "leans responder",
+      "sources": [
+        "tumeh2014",
+        "pybus2026"
+      ]
+    },
+    {
+      "modality": "mif",
+      "match": "pd-?l1",
+      "note": "PD-L1 expression is an imperfect biomarker: PD-L1 positivity alone did not separate responders from non-responders in the foundation study, and responses occur in PD-L1-low tumours.",
+      "direction": "not predictive alone",
+      "sources": [
+        "pybus2026"
+      ]
+    }
+  ]
+}

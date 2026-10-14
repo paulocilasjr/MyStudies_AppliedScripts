@@ -26,7 +26,8 @@ UI_COMMIT = "59b7f0f3f864aef3a5d95ca9af4c2acfdb928a7f"
 
 def _ui_text(result):
     source = result["narrative_source"]
-    source_label = "mock (no language model executed)" if source == "mock" else source
+    source_label = {"mock": "mock (no language model executed)",
+                    "transformers": "transformers (local Nemotron via Hugging Face Transformers)"}.get(source, source)
     if result["provenance"].get("generator") == "injected":
         source_label += " (injected test generator)"
     scores = ", ".join(f"{m}={result['predictions'][m]['probability']!r}" for m in MODALITIES)
@@ -42,7 +43,8 @@ def _ui_text(result):
     return "\n".join(lines)
 
 
-def export_ui_bundle(run_dir: str | Path, output_dir: str | Path, *, canonical_input: str | Path | None = None) -> dict:
+def export_ui_bundle(run_dir: str | Path, output_dir: str | Path, *, canonical_input: str | Path | None = None,
+                     include_synthetic_labels: bool = False) -> dict:
     """Export a complete-score subset for the audited file-only Streamlit UI.
 
     Critical record/provenance consistency is checked, not medical truth or a
@@ -64,6 +66,8 @@ def export_ui_bundle(run_dir: str | Path, output_dir: str | Path, *, canonical_i
             any(canonical[pid][field] != evidence[pid][field] for field in EVIDENCE_FIELDS) for pid in evidence
         ):
             raise ContractError("canonical input evidence does not match run results")
+    if include_synthetic_labels and (not canonical or any(row["evaluation_partition"] != "synthetic" for row in canonical.values())):
+        raise ContractError("synthetic label export requires matching canonical input with every patient declared synthetic")
     included, excluded = [], []
     for result in results:
         missing = [m for m in MODALITIES if m not in result["predictions"]]
@@ -84,6 +88,10 @@ def export_ui_bundle(run_dir: str | Path, output_dir: str | Path, *, canonical_i
             reason = "canonical input not supplied; label unavailable in interpretation result"
         elif row["ground_truth"] is None:
             reason = "ground truth unknown"
+        elif include_synthetic_labels:
+            labels[pid] = row["ground_truth"]
+            groups.add(("synthetic", row["response_definition"]))
+            continue
         elif row["evaluation_partition"] not in {"test", "out_of_fold"}:
             reason = "not declared test or out_of_fold"
         elif row["response_definition"].lower() in {"not specified", "unspecified", "unknown"}:
@@ -102,7 +110,9 @@ def export_ui_bundle(run_dir: str | Path, output_dir: str | Path, *, canonical_i
                "source_results_sha256": hashlib.sha256(result_bytes).hexdigest(),
                "patient_count": len(included), "included_patient_ids": [r["patient_id"] for r in included],
                "excluded_patients": excluded, "actual_response_count": len(labels), "withheld_labels": withheld,
-               "label_policy": "matching canonical input; declared test/out_of_fold and specified endpoint; otherwise blank",
+               "label_policy": ("synthetic demonstration labels only; never clinical evaluation" if include_synthetic_labels else
+                                "matching canonical input; declared test/out_of_fold and specified endpoint; otherwise blank"),
+               "synthetic_labels": include_synthetic_labels,
                "evaluation_group": list(next(iter(groups))) if groups else None, "display_threshold": 0.5,
                "source_counts": dict(Counter(r["narrative_source"] for r in included)), "review_required": True,
                "warnings": ["The current UI displays only the complete three-score subset; exclusions are explicit and scores are never imputed.",
@@ -120,7 +130,8 @@ def export_ui_bundle(run_dir: str | Path, output_dir: str | Path, *, canonical_i
                 writer.writerow({"Patient_id": result["patient_id"],
                                  **{"prob_" + m: result["predictions"][m]["probability"] for m in MODALITIES},
                                  "actual_response": labels.get(result["patient_id"], "")})
-        (staging / "narratives.json").write_text(json.dumps({r["patient_id"]: _ui_text(r) for r in included}, ensure_ascii=True, allow_nan=False, indent=2) + "\n", encoding="utf-8")
+        banner = "SYNTHETIC DEMONSTRATION: patient inputs and response labels are simulated; supplied scores do not measure clinical performance.\n\n" if include_synthetic_labels else ""
+        (staging / "narratives.json").write_text(json.dumps({r["patient_id"]: banner + _ui_text(r) for r in included}, ensure_ascii=True, allow_nan=False, indent=2) + "\n", encoding="utf-8")
         (staging / "copilot_results.jsonl").write_bytes(result_bytes)
         (staging / "copilot_manifest.json").write_bytes(manifest_bytes)
         (staging / "ui_export_manifest.json").write_text(json.dumps(summary, ensure_ascii=True, allow_nan=False, indent=2) + "\n", encoding="utf-8")

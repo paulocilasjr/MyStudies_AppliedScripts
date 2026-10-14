@@ -16,18 +16,23 @@ from .verify import verify_run
 
 
 def _inference_arguments(parser):
-    parser.add_argument("--backend", choices=("mock", "vllm"), default="vllm")
+    parser.add_argument("--backend", choices=("mock", "vllm", "transformers"), default="vllm")
     parser.add_argument("--model-path", help="prepared local snapshot; remote model names are not accepted")
-    parser.add_argument("--max-tokens", type=int, default=300)
+    parser.add_argument("--max-tokens", type=int, default=200, help="reply budget for each report prose part")
     parser.add_argument("--max-model-len", type=int, default=4096)
     parser.add_argument("--gpu-memory-utilization", type=float, default=0.80)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--disagreement-threshold", type=float, default=0.20)
+    parser.add_argument("--device", choices=("auto", "mps", "cpu"), default="auto", help="transformers backend only")
+
+
+BACKEND_SETTINGS = {"vllm": ("max_tokens", "max_model_len", "gpu_memory_utilization", "seed", "temperature"),
+                    "transformers": ("max_tokens", "max_model_len", "seed", "temperature", "device")}
 
 
 def _copilot(args):
-    settings = {key: getattr(args, key) for key in ("max_tokens", "max_model_len", "gpu_memory_utilization", "seed", "temperature")} if args.backend == "vllm" else {}
+    settings = {key: getattr(args, key) for key in BACKEND_SETTINGS.get(args.backend, ())}
     return Copilot(backend=args.backend, model_path=args.model_path,
                    disagreement_threshold=args.disagreement_threshold, **settings)
 
@@ -44,6 +49,8 @@ def parser() -> argparse.ArgumentParser:
     verify.add_argument("--input", required=True)
     verify.add_argument("--output-dir", required=True)
     verify.add_argument("--require-vllm", action="store_true")
+    verify.add_argument("--require-backend", choices=("vllm", "transformers"),
+                        help="require every narrative to be an accepted generation from this local model backend")
     verify.add_argument("--require-synthetic", action="store_true")
     verify.add_argument("--expected-model-id")
     verify.add_argument("--expected-model-revision")
@@ -51,6 +58,13 @@ def parser() -> argparse.ArgumentParser:
     export.add_argument("--run-dir", required=True)
     export.add_argument("--output-dir", required=True)
     export.add_argument("--input", help="optional original canonical input, hash-checked before exporting eligible ground truth")
+    handoff = commands.add_parser("prepare-handoff", help="validate the synthetic handoff packet and prepare canonical patient inputs")
+    handoff.add_argument("--handoff-dir", default="examples/paulo_handoff")
+    handoff.add_argument("--output-dir", required=True)
+    handoff_ui = commands.add_parser("export-handoff-ui", help="export generated handoff narratives, synthetic labels, and supplied patient figures")
+    handoff_ui.add_argument("--handoff-dir", default="examples/paulo_handoff")
+    handoff_ui.add_argument("--run-dir", required=True)
+    handoff_ui.add_argument("--output-dir", required=True)
     validate = commands.add_parser("validate", help="validate JSONL without loading any model")
     validate.add_argument("--input", required=True)
     assemble = commands.add_parser("assemble", help="join team prediction CSVs by canonical patient ID")
@@ -63,7 +77,7 @@ def parser() -> argparse.ArgumentParser:
     prepare.add_argument("--revision", default=DEFAULT_REVISION)
     prepare.add_argument("--cache-dir", default=".cache/huggingface/hub")
     diagnose = commands.add_parser("doctor", help="check Python, pinned runtime, GPU and driver")
-    diagnose.add_argument("--backend", choices=("mock", "vllm"), default="vllm")
+    diagnose.add_argument("--backend", choices=("mock", "vllm", "transformers"), default="vllm")
     serve = commands.add_parser("serve", help="loopback-only interpretation API")
     _inference_arguments(serve)
     serve.add_argument("--host", default="127.0.0.1")
@@ -101,7 +115,7 @@ def main(argv=None) -> int:
             print(json.dumps({"patient_count": manifest["patient_count"], "backend": args.backend,
                               "output_dir": str(Path(args.output_dir).resolve()), "source_counts": manifest["source_counts"]}))
         elif args.command == "verify-run":
-            report = verify_run(args.input, args.output_dir, require_vllm=args.require_vllm,
+            report = verify_run(args.input, args.output_dir, require_vllm=args.require_vllm, require_backend=args.require_backend,
                                 require_synthetic=args.require_synthetic, expected_model_id=args.expected_model_id,
                                 expected_model_revision=args.expected_model_revision)
             print(json.dumps(report, indent=2))
@@ -109,6 +123,14 @@ def main(argv=None) -> int:
         elif args.command == "export-ui":
             from .ui_export import export_ui_bundle
             report = export_ui_bundle(args.run_dir, args.output_dir, canonical_input=args.input)
+            print(json.dumps(report, indent=2))
+        elif args.command == "prepare-handoff":
+            from .handoff import prepare_handoff
+            report = prepare_handoff(args.handoff_dir, args.output_dir)
+            print(json.dumps(report, indent=2))
+        elif args.command == "export-handoff-ui":
+            from .handoff_export import export_handoff_bundle
+            report = export_handoff_bundle(args.handoff_dir, args.run_dir, args.output_dir)
             print(json.dumps(report, indent=2))
         elif args.command == "serve":
             server = create_server(_copilot(args), args.host, args.port)

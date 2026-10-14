@@ -19,9 +19,17 @@ def prepare_model(model_id: str = DEFAULT_MODEL, revision: str = DEFAULT_REVISIO
     if not re.fullmatch(r"[0-9a-f]{40}", revision):
         raise ValueError("revision must be an exact 40-character commit hash for reproducibility")
     os.environ.update({"HF_HUB_DISABLE_TELEMETRY": "1", "HF_HUB_DISABLE_IMPLICIT_TOKEN": "1", "DO_NOT_TRACK": "1"})
+    try:
+        # Optional (requirements-local.txt): trust the OS certificate store, e.g.
+        # an institutional TLS-inspection root that certifi does not include.
+        import truststore
+        truststore.inject_into_ssl()
+    except ImportError:
+        pass
     from huggingface_hub import snapshot_download
     from huggingface_hub.utils import disable_progress_bars
-    disable_progress_bars()
+    if not sys.stderr.isatty():
+        disable_progress_bars()
     cache = Path(cache_dir).expanduser().resolve()
     cache.mkdir(parents=True, exist_ok=True)
     snapshot = Path(snapshot_download(repo_id=model_id, revision=revision, cache_dir=str(cache),
@@ -45,6 +53,18 @@ def prepare_model(model_id: str = DEFAULT_MODEL, revision: str = DEFAULT_REVISIO
     return str(snapshot)
 
 
+def _check_pins(report: dict, expected: dict) -> None:
+    report["packages"] = {}
+    for package, pin in expected.items():
+        try:
+            actual = importlib.metadata.version(package)
+        except importlib.metadata.PackageNotFoundError:
+            actual = "missing"
+        report["packages"][package] = actual
+        if actual != pin:
+            report["errors"].append(f"{package} requires {pin}, found {actual}")
+
+
 def doctor(backend: str = "mock") -> dict:
     report = {"backend": backend, "python": platform.python_version(), "os": platform.system(),
               "machine": platform.machine(), "checks": [], "errors": []}
@@ -59,16 +79,7 @@ def doctor(backend: str = "mock") -> dict:
         report["glibc"] = version if libc == "glibc" else "unknown"
         if libc != "glibc" or not version or tuple(int(v) for v in version.split(".")[:2]) < (2, 28):
             report["errors"].append("pinned PyTorch wheels require glibc >=2.28")
-        expected = {"vllm": "0.10.2", "torch": "2.8.0+cu128", "transformers": "4.55.2", "huggingface-hub": "0.34.4"}
-        report["packages"] = {}
-        for package, pin in expected.items():
-            try:
-                actual = importlib.metadata.version(package)
-            except importlib.metadata.PackageNotFoundError:
-                actual = "missing"
-            report["packages"][package] = actual
-            if actual != pin:
-                report["errors"].append(f"{package} requires {pin}, found {actual}")
+        _check_pins(report, {"vllm": "0.10.2", "torch": "2.8.0+cu128", "transformers": "4.55.2", "huggingface-hub": "0.34.4"})
         if not report["errors"]:
             try:
                 result = subprocess.run(["nvidia-smi", "--query-gpu=driver_version", "--format=csv,noheader"],
@@ -97,7 +108,20 @@ def doctor(backend: str = "mock") -> dict:
                             report["checks"].append("CUDA allocation and synchronization succeeded")
             except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
                 report["errors"].append(f"GPU runtime check failed ({type(exc).__name__}); inspect allocation and driver installation")
+    elif backend == "transformers":
+        _check_pins(report, {"torch": "2.8.0", "transformers": "4.55.2", "huggingface-hub": "0.34.4"})
+        if not report["errors"]:
+            try:
+                import torch
+                device = "mps" if torch.backends.mps.is_available() else "cpu"
+                report["device"] = device
+                torch.ones(1, dtype=torch.bfloat16, device=device).sum().item()
+                report["checks"].append(f"bfloat16 allocation on {device} succeeded")
+                if device == "cpu":
+                    report["checks"].append("Apple MPS unavailable; CPU generation works but is much slower")
+            except (OSError, RuntimeError) as exc:
+                report["errors"].append(f"PyTorch device check failed ({type(exc).__name__})")
     else:
-        raise ValueError("backend must be mock or vllm")
+        raise ValueError("backend must be mock, vllm, or transformers")
     report["ok"] = not report["errors"]
     return report

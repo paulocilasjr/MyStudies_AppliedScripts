@@ -16,7 +16,8 @@ from .results import read_run
 
 def verify_run(input_path: str | Path, output_dir: str | Path, *,
                require_vllm: bool = False, require_synthetic: bool = False,
-               expected_model_id: str | None = None, expected_model_revision: str | None = None) -> dict:
+               expected_model_id: str | None = None, expected_model_revision: str | None = None,
+               require_backend: str | None = None) -> dict:
     """Write verification.json and return a pass/fail report.
 
     Real-model acceptance is deliberately strict: every narrative must pass the
@@ -24,12 +25,19 @@ def verify_run(input_path: str | Path, output_dir: str | Path, *,
     Recorded execution metadata is evidence from this program, not attestation
     against deliberately edited artifacts or proof of clinical correctness.
     """
+    if require_vllm:
+        if require_backend not in (None, "vllm"):
+            raise ValueError("require_vllm conflicts with the requested backend")
+        require_backend = "vllm"
+    if require_backend not in (None, "vllm", "transformers"):
+        raise ValueError("required backend must be vllm or transformers")
     output = Path(output_dir).expanduser().resolve()
     if not output.is_dir():
         raise ValueError("completed run directory does not exist")
     checks = {}
     report = {"schema_version": "1.0", "checked_at_utc": datetime.now(timezone.utc).isoformat(),
-              "ok": False, "require_vllm": require_vllm, "require_synthetic": require_synthetic,
+              "ok": False, "require_vllm": require_backend == "vllm", "require_backend": require_backend,
+              "require_synthetic": require_synthetic,
               "expected_model_id": expected_model_id, "expected_model_revision": expected_model_revision,
               "checks": checks, "errors": [],
               "scope": "Interface and generation acceptance only; clinical correctness and predictive performance are not verified."}
@@ -55,7 +63,7 @@ def verify_run(input_path: str | Path, output_dir: str | Path, *,
             r.get("review_required") is True and isinstance(r.get("limitations"), list) and r["limitations"]
             and all(isinstance(s, str) and s.strip() for s in r["limitations"]) for r in results)
         checks["narratives_present"] = bool(results) and all(isinstance(r.get("narrative"), str) and r["narrative"].strip() for r in results)
-        quality_status = {"mock": "mock", "vllm": "passed", "fallback": "fallback"}
+        quality_status = {"mock": "mock", "vllm": "passed", "transformers": "passed", "fallback": "fallback"}
         checks["source_quality_consistent"] = all(
             r.get("narrative_source") in quality_status and isinstance(r.get("quality"), dict)
             and r["quality"].get("status") == quality_status[r["narrative_source"]]
@@ -74,18 +82,18 @@ def verify_run(input_path: str | Path, output_dir: str | Path, *,
                 expected_model_revision is None or model.get("revision") == expected_model_revision)
         if require_synthetic:
             checks["inputs_declared_synthetic"] = all(p["evaluation_partition"] == "synthetic" for p in patients)
-        if require_vllm:
+        if require_backend:
             backend = manifest.get("backend", {})
             execution = backend.get("execution", {})
             calls, records = execution.get("generation_calls"), execution.get("generated_records")
-            checks["local_vllm_executed"] = (
-                backend.get("backend") == "vllm" and "generator" not in backend
+            checks[f"local_{require_backend}_executed"] = (
+                backend.get("backend") == require_backend and "generator" not in backend
                 and execution.get("model_loaded") is True
                 and type(calls) is int and calls > 0
                 and type(records) is int and records >= len(patients))
-            checks["all_generated_narratives_accepted"] = counts == {"vllm": len(patients)}
-            checks["result_backend_is_vllm"] = all(
-                isinstance(r.get("provenance"), dict) and r["provenance"].get("backend") == "vllm"
+            checks["all_generated_narratives_accepted"] = counts == {require_backend: len(patients)}
+            checks[f"result_backend_is_{require_backend}"] = all(
+                isinstance(r.get("provenance"), dict) and r["provenance"].get("backend") == require_backend
                 and "generator" not in r["provenance"] for r in results)
         report["errors"] = [name for name, passed in checks.items() if not passed]
         report["ok"] = bool(checks) and not report["errors"]

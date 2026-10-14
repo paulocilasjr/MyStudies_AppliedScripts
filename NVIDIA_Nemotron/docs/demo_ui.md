@@ -6,6 +6,8 @@ The inspected UI is [qchiujunhao/melanoma-demo-ui](https://github.com/qchiujunha
 
 ## Actual viewer contract
 
+For Alyssa's five synthetic S01–S05 cases, use the [dedicated handoff workflow](handoff.md). It preserves the supplied labels explicitly as synthetic demonstration data and bundles original clinical SHAP/mIF figures with mismatch notes. A follow-up inspection of UI commit [`4306ad74eb3bfa6ed0bb330a397dd6b5cd40fbed`](https://github.com/qchiujunhao/melanoma-demo-ui/commit/4306ad74eb3bfa6ed0bb330a397dd6b5cd40fbed) confirmed that patient-specific feature-analysis/figure rendering still needs a UI extension. This repository's `demo/handoff_app.py` provides that local viewer. Use it for the five-patient test; any ROC displayed by the external UI using these fabricated labels is illustrative only.
+
 | File under the UI's `results/predictions/` | Actual parser requirement |
 | --- | --- |
 | `patient_predictions.csv` | Required columns exactly named `Patient_id`, `prob_mif`, `prob_clinical`, `prob_fused`, `actual_response`. Extra columns are accepted but not automatically displayed. |

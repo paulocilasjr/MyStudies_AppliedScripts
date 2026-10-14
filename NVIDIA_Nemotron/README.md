@@ -6,6 +6,35 @@ The local GPU backend uses NVIDIA's `Nemotron-Mini-4B-Instruct` weights through 
 
 The input is **predictions already produced by the clinical/mIF/fusion models**, plus patient evidence and context. This component does not train those predictors or calculate predictions directly from raw clinical tables, slides, or images. The response endpoint remains undecided.
 
+## Run the complete MVP locally with the real model
+
+On an Apple Silicon Mac (or another computer with Python 3.11–3.13), one command runs the whole demonstration with real Nemotron inference and opens the connected viewer:
+
+```bash
+bash run_local_mvp.sh
+```
+
+The first run creates `.envs/local-mvp` from `requirements-local.txt` and downloads the pinned public `Nemotron-Mini-4B-Instruct` snapshot (about 8.4 GB) into `.cache/huggingface/hub`. Later runs reuse both and stay offline. The script then:
+
+1. imports Alyssa's five synthetic patients;
+2. generates their narratives on this computer (Apple MPS through Hugging Face Transformers);
+3. verifies the run and exports the viewer bundle;
+4. starts the loopback copilot API and opens the Streamlit viewer connected to it.
+
+Each patient gets a structured report with four parts:
+1. **Model evaluation predictions:** the three scores and what they imply, including the strongest hypothesis or the conflict and tendency.
+2. **Clinical evaluation:** features towards responder and towards non-responder, by SHAP sign, with literature notes.
+3. **Immune evaluation:** each mIF feature with its literature note and classification direction.
+4. **Conclusions.**
+
+The application prints the scores, feature lists, cited literature notes, and the hypothesis it computes. Nemotron writes the short prose of parts 1, 2 and 4, one focused prompt per part. On an M3 Pro, generation takes about two minutes for five patients.
+
+Each patient page in the viewer can regenerate its report live through the local API. Only the patient's supplied evidence is sent, never its label. Press Ctrl+C to stop the API and viewer.
+
+Each run writes a new `results/local-mvp-<timestamp>/` root containing `SUMMARY.md` (every patient's report and the output files), `input/`, `experiment/`, `ui/`, `live_api_check.json` and `logs/`. To reopen a completed run without regenerating, use `bash run_local_mvp.sh --reuse-run results/local-mvp-<timestamp>`. `--no-ui` stops after the outputs, and `--help` lists the device and port options.
+
+Local results record `narrative_source: "transformers"`, distinct from HPC `vllm` output. The weights, revision, prompt and greedy settings are the same. vLLM's JSON-schema guided decoding is replaced by a forced `{"text": "` reply prefix, so wording can differ from an A30 run. On MPS the backend uses eager attention, because PyTorch 2.8's half-precision scaled-dot-product attention produces only padding tokens at this prompt length. The automated screen applies unchanged: if any generated part is rejected, the report uses labelled deterministic prose for all three parts, and the run summary reports it. Behind an institutional TLS-inspection proxy, `prepare-model` uses the operating system's certificate store via `truststore`.
+
 ## Run the local demonstration
 
 From this folder, with Python 3.11 or newer:
@@ -15,6 +44,28 @@ bash scripts/run_local.sh
 ```
 
 The runner uses your existing Python and executes a deterministic `mock` experiment using `examples/mock_predictions.jsonl`. It needs no third-party packages, GPU, model download, or real patient data. The four synthetic cases cover concordant predictions, disagreement between modalities, clinical data alone, and scores near a supplied threshold. A successful mock run verifies the interfaces and output plumbing; it does not verify Nemotron inference or prediction quality.
+
+## Test Alyssa's five-patient handoff
+
+The supplied `examples/paulo_handoff/` packet includes synthetic patients S01–S05, three prediction scores per patient, and clinical SHAP/mIF plots. Run its complete import, narrative generation, verification, and UI export locally:
+
+```bash
+bash scripts/run_handoff.sh --backend mock --output-dir results/handoff-local-001
+```
+
+Use a new output directory for each run. The `input/` folder contains canonical patient JSONL and an audit; `experiment/` contains structured narratives and verification; `ui/` contains scores, generated narrative JSON, and all twenty original PNG/PDF figures. The supplied placeholder narratives are excluded. In the updated packet, clinical SHAP JSON agrees with clinical scores within the declared rounding checks, while the supplied clinical images remain stale. Those plots remain available with visible warnings. The additional `prob_mif_real` conflicts with each CSV mIF score, and `tile_prob` duplicates tile attention weights; the audit preserves these distinctions and keeps tile tables under `ui/source_data/`, outside the response-probability heatmap contract.
+
+The local companion adds a patient dropdown and both figure panels to the compatible UI bundle. In a separate Python environment:
+
+```bash
+python3 -m venv .envs/handoff-demo
+.envs/handoff-demo/bin/python -m pip install -r requirements-demo.txt
+.envs/handoff-demo/bin/streamlit run demo/handoff_app.py \
+  --server.address 127.0.0.1 --browser.gatherUsageStats false \
+  -- --bundle-dir results/handoff-local-001/ui
+```
+
+For real Nemotron generation on HPC, use `bash scripts/run_handoff.sh --backend vllm --output-dir results/handoff-gpu-001`. It prepares the pinned environment/model, submits an A30 job, and exports UI files only after strict real-generation verification passes. See the [handoff guide](docs/handoff.md) for monitoring, offline runs, individual entry points, and plot limitations. The unchanged external UI can load the basic scores/narratives; patient-specific plots require this companion or a corresponding UI extension.
 
 ## Run on Moffitt's HPC
 
@@ -76,13 +127,17 @@ Use the same CSV headers with real upstream files once those models are ready. T
 
 Start with [patient input guidance](docs/patient_inputs.md) and the fully synthetic `examples/patient_template.json`. The six-case `examples/prompt_quality_cases.jsonl` additionally exercises absent thresholds and instruction-like context. Do not copy its synthetic scores into study records.
 
-The packaged [interpretation skill](src/icb_copilot/skills/icb-interpretation/SKILL.md) and three worked examples are loaded into the actual system prompt, including after wheel installation. The application supplies deterministic comparison flags and keeps labels out of the prompt. Prompt version and SHA-256 are recorded per result. [Prompt review and HPC commands](docs/prompt_review.md) explain raw reply inspection, strict real-model acceptance, and the remaining GPU verification step.
+The packaged [interpretation skill](src/icb_copilot/skills/icb-interpretation/SKILL.md) and its worked examples build one focused system prompt per report part, including after wheel installation. The skill gives the model a compact summary of the project and its foundation study. Two references stay out of the 4,096-token prompt:
+- the full background, in the [project context reference](src/icb_copilot/skills/icb-interpretation/references/project-context.md);
+- the cited per-feature literature, in [feature-literature.json](src/icb_copilot/skills/icb-interpretation/references/feature-literature.json).
+
+The application computes the comparison, the plain-word `situation` and the strongest hypothesis, and keeps labels out of the prompt. The screen rejects generated statements that contradict those facts or the SHAP directions. Prompt version and SHA-256 are recorded per result. [Prompt review and HPC commands](docs/prompt_review.md) explain raw reply inspection, strict real-model acceptance, and the remaining GPU verification step.
 
 ## Read an experiment's outputs
 
 | Artifact | Purpose |
 | --- | --- |
-| `narratives.jsonl` | One structured result per patient, including the narrative, unchanged input predictions, limitations, quality status, and provenance. Recommended UI input. |
+| `narratives.jsonl` | One structured result per patient, including the four-part report (`narrative`), unchanged input predictions, limitations, quality status, and provenance. Recommended UI input. |
 | `generation_review.jsonl` | Raw model replies, screen issues, and prompt version/hash for prompt review. Mock runs contain null replies; this file is not UI narrative input. |
 | `narratives.csv` | Compact patient summaries for tabular inspection. |
 | `report.md` | Human-readable experiment report. |

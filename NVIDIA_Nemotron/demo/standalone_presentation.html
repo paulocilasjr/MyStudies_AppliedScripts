@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<title>ICB Response Prediction — Patient Explorer</title>
+<style>
+:root{color-scheme:light;--ink:#152f39;--muted:#5a6c73;--line:#dce5e5;--accent:#087d76}*{box-sizing:border-box}body{margin:0;background:#f3f6f5;color:var(--ink);font:16px/1.6 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{max-width:1240px;margin:auto;padding:36px 24px 60px}header{border-bottom:1px solid var(--line);padding-bottom:24px;margin-bottom:24px}.eyebrow{font-size:12px;letter-spacing:.16em;text-transform:uppercase;font-weight:750;color:var(--accent)}h1{font-size:clamp(28px,4vw,44px);line-height:1.2;margin:10px 0}h2{font-size:23px;margin:0 0 12px}h3{font-size:17px;margin:0 0 14px}.sub,small,.muted{color:var(--muted)}.sub{max-width:900px;margin:12px 0}.pill{display:inline-block;padding:4px 11px;border-radius:20px;background:#e2efeb;color:#146453;font-size:13px;font-weight:650}.controls{display:flex;align-items:end;gap:20px;flex-wrap:wrap;margin:24px 0}label{font-size:13px;font-weight:700;display:block}select,button{font:inherit;padding:10px 16px;border:1px solid #bbcccc;background:white;color:var(--ink);border-radius:8px}select{min-width:200px;cursor:pointer}button{cursor:pointer}button:hover{border-color:var(--accent)}.controls small{margin-left:auto}.scores{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:20px 0}.card{background:white;border:1px solid var(--line);border-radius:14px;padding:22px}.score{font-size:36px;font-weight:750;letter-spacing:-.04em}.score-label{font-size:13px;color:var(--muted)}.bar{height:5px;background:#e7eeed;border-radius:4px;overflow:hidden;margin:10px 0}.bar i{height:100%;display:block;background:var(--accent)}.fused{border-top:4px solid var(--accent)}.outcome{margin:0 0 18px;font-size:14px}.plots{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:24px 0}.plots img{width:100%;height:auto;background:white;display:block;margin:14px 0}.plots a{font-size:13px;color:var(--accent)}.narrative{margin:24px 0}.narrative .source{margin:0 0 16px;display:flex;align-items:center;gap:12px}.report-part{margin:14px 0}.report-part h3{color:var(--accent);font-size:15px}.report-part p{white-space:pre-wrap;margin:4px 0}@media print{.controls,details,footer,.pill{display:none}.plots{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body><main>
+<header><div class="eyebrow">Multimodal melanoma research · ICB response prediction</div><h1>Patient Explorer</h1><p class="sub">Clinical, spatial mIF and fused predictions with feature explanations and Nemotron interpretations.</p></header>
+<div class="controls"><div><label for="patient">Select a patient</label><select id="patient"></select></div><button id="print" type="button">Print / save PDF</button></div>
+<section aria-live="polite" aria-atomic="false"><h2 id="patient-title"></h2><div class="scores" id="scores"></div><p class="outcome" id="outcome"></p>
+<div class="plots"><article class="card"><h3>Clinical Feature Importance (SHAP)</h3><img id="clinical-image" alt=""></article><article class="card"><h3>Spatial mIF Feature Importance</h3><img id="mif-image" alt=""></article></div>
+<article class="card narrative"><h2>Nemotron Interpretation</h2><div id="narrative"></div></article>
+</section><footer id="footer"></footer>
+</main>
+<script>
+'use strict';
+const DATA = /*__PATIENT_DATA__*/;
+const $ = id => document.getElementById(id);
+function node(tag,text,cls){const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;}
+const selector=$('patient');
+for(const p of DATA.patients){const option=node('option',p.id);option.value=p.id;selector.append(option);}
+function render(){
+ const p=DATA.patients.find(p=>p.id===selector.value);
+ $('patient-title').textContent='Patient '+p.id;
+ $('scores').replaceChildren();
+ for(const [key,label] of [['clinical','Clinical Model'],['mif','Spatial mIF Model'],['fused','Fused Model']]){
+  const c=node('div',undefined,'card '+(key==='fused'?'fused':''));c.append(node('div',label,'score-label'),node('div',p.scores[key].toFixed(2),'score'));
+  const bar=node('div',undefined,'bar'),fill=node('i');fill.style.width=(p.scores[key]*100)+'%';bar.append(fill);c.append(bar,node('small',p.scores[key]>=.5?'Predicted responder':'Predicted non-responder'));$('scores').append(c);
+ }
+ $('outcome').textContent='Observed response: '+(p.label===null?'unknown':p.label===1?'Responder':'Non-responder');
+ for(const [prefix,kind] of [['clinical','clinical_shap'],['mif','mif_contrast']]){
+  $(prefix+'-image').src=p.assets[kind+'_png'];$(prefix+'-image').alt=p.id+' '+(prefix==='clinical'?'clinical SHAP waterfall':'mIF attention contrast');
+ }
+ const report=$('narrative');report.replaceChildren();
+ const parts=p.narrative.split(/(?=^[1234]\) )/m);
+ for(const text of parts){if(!text.trim())continue;const section=node('section',undefined,'report-part');const match=text.match(/^([1234]\) [^\n]+)\n/);if(match){section.append(node('h3',match[1]),node('p',text.slice(match[0].length)));}else section.append(node('p',text));report.append(section);}
+}
+selector.addEventListener('change',render);$('print').addEventListener('click',()=>window.print());render();
+</script></body></html>

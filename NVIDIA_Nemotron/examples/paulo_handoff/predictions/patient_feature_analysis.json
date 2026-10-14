@@ -97,8 +97,7 @@
         "value": 1.0,
         "contrast": 0.0
       }
-    ],
-    "prob_mif_real": 0.9402
+    ]
   },
   "S02": {
     "clinical": {
@@ -141,44 +140,44 @@
       {
         "feature": "B/T cell \u2192 CD8+ T cell co-localization",
         "raw_feature": "ripleysL_20um.CD3+ CD20+_to_CD8+",
-        "value": 40.487,
-        "contrast": 0.0
+        "value": 41.2209,
+        "contrast": 3.3141
       },
       {
         "feature": "T cell \u2192 B/T cell co-localization",
         "raw_feature": "ripleysL_20um.CD3+_to_CD3+ CD20+",
-        "value": 90.2508,
-        "contrast": 0.0
-      },
-      {
-        "feature": "nNOS+/SOX10+ tumor subpopulation",
-        "raw_feature": "subpop.nNOS.SOX10",
-        "value": 0.0,
-        "contrast": 0.0
-      },
-      {
-        "feature": "T cell \u2192 iNOS+ tumor proximity",
-        "raw_feature": "ripleysL_20um.CD3+_to_iNOS+ SOX10+",
-        "value": 24.3469,
-        "contrast": 0.0
+        "value": 89.5357,
+        "contrast": 2.7997
       },
       {
         "feature": "Cytotoxic T cell \u2192 PDL1+ proximity",
         "raw_feature": "ripleysL_20um.CD3+ CD8+_to_PDL1+",
-        "value": 39.0219,
-        "contrast": 0.0
+        "value": 38.6482,
+        "contrast": -1.4642
       },
       {
-        "feature": "CD3+CD8+PDL1+ proportion",
-        "raw_feature": "prop.CD3_CD8_PDL1",
-        "value": 0.0006,
-        "contrast": 0.0
+        "feature": "T cell \u2192 iNOS+ tumor proximity",
+        "raw_feature": "ripleysL_20um.CD3+_to_iNOS+ SOX10+",
+        "value": 24.6313,
+        "contrast": -0.4051
       },
       {
         "feature": "CD3+CD8+iNOS+ proportion",
         "raw_feature": "prop.CD3_CD8_iNOS",
-        "value": 0.0,
-        "contrast": 0.0
+        "value": 0.0006,
+        "contrast": -0.0008
+      },
+      {
+        "feature": "nNOS+/SOX10+ tumor subpopulation",
+        "raw_feature": "subpop.nNOS.SOX10",
+        "value": 0.0005,
+        "contrast": 0.0003
+      },
+      {
+        "feature": "CD3+CD8+PDL1+ proportion",
+        "raw_feature": "prop.CD3_CD8_PDL1",
+        "value": 0.0008,
+        "contrast": -0.0001
       },
       {
         "feature": "Biopsy site: skin",
@@ -198,8 +197,7 @@
         "value": 1.0,
         "contrast": 0.0
       }
-    ],
-    "prob_mif_real": 0.757
+    ]
   },
   "S03": {
     "clinical": {
@@ -299,8 +297,7 @@
         "value": 1.0,
         "contrast": 0.0
       }
-    ],
-    "prob_mif_real": 0.9857
+    ]
   },
   "S04": {
     "clinical": {
@@ -400,8 +397,7 @@
         "value": 0.0,
         "contrast": 0.0
       }
-    ],
-    "prob_mif_real": 0.9909
+    ]
   },
   "S05": {
     "clinical": {
@@ -501,7 +497,6 @@
         "value": 0.0,
         "contrast": 0.0
       }
-    ],
-    "prob_mif_real": 0.9942
+    ]
   }
 }

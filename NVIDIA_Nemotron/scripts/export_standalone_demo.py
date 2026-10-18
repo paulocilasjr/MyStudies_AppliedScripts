@@ -22,14 +22,19 @@ def export(bundle_dir, output):
             assets[kind + '_' + fmt] = 'data:' + mime + ';base64,' + base64.b64encode(entry['path'].read_bytes()).decode()
         result = patient['result']
         # Export only useful provenance; omit machine-specific paths and raw logs.
+        provenance = {k: result['provenance'][k] for k in ('prompt_version', 'prompt_sha256', 'backend', 'generator')
+                      if k in result['provenance']}
+        model = result['provenance'].get('model')
+        if isinstance(model, dict):
+            provenance['model'] = {k: model[k] for k in ('model_id', 'revision') if k in model}
         patients.append(dict(id=pid, scores=patient['scores'], label=patient['actual_response'],
             outcome=viewer.outcome_label(patient['scores']['fused'], patient['actual_response']),
-            narrative=result['narrative'], source=result['narrative_source'], source_label=viewer.SOURCE_TEXT[result['narrative_source']],
+            narrative=result['narrative'], source=result['narrative_source'], source_label=viewer.source_text(result),
             quality=result['quality'], review_required=result['review_required'], limitations=result['limitations'],
             context=result['clinical_context'], analysis=patient['analysis'], audit=patient['audit'],
             warnings=list(dict.fromkeys(patient['warnings'] + [w for a in patient['assets'].values() for w in a.get('warnings', [])])),
             clinical_plot_mismatch=patient['clinical_plot_mismatch'], mif_score=patient['mif_score'], assets=assets,
-            provenance={k: result['provenance'].get(k) for k in ('prompt_version', 'prompt_sha256', 'backend')},
+            provenance=provenance,
             predictions=result['predictions']))
     payload = dict(patients=patients, exported_at=bundle['ui_export_manifest'].get('exported_at_utc'),
                    input_sha256=bundle['ui_export_manifest'].get('source_input_sha256'))

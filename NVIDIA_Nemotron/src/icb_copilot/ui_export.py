@@ -27,6 +27,7 @@ UI_COMMIT = "59b7f0f3f864aef3a5d95ca9af4c2acfdb928a7f"
 def _ui_text(result):
     source = result["narrative_source"]
     source_label = {"mock": "mock (no language model executed)",
+                    "nim": "nim (NVIDIA-hosted NIM; remote inference)",
                     "transformers": "transformers (local Nemotron via Hugging Face Transformers)"}.get(source, source)
     if result["provenance"].get("generator") == "injected":
         source_label += " (injected test generator)"
@@ -38,6 +39,10 @@ def _ui_text(result):
              "Full-precision supplied scores: " + scores + ".",
              "Viewer display threshold 0.5 matches the supplied thresholds for all three models.",
              "", result["narrative"], "", "Limitations:", *["- " + text for text in result["limitations"]]]
+    if result["provenance"].get("backend") == "nim":
+        model = result["provenance"].get("model", {})
+        if model.get("model_id"):
+            lines.insert(2, f"NIM model: {model['model_id']}; revision: {model.get('revision', 'not recorded')}.")
     if result["quality"]["issues"]:
         lines.extend(["", "Screen issues: " + ", ".join(result["quality"]["issues"])])
     return "\n".join(lines)

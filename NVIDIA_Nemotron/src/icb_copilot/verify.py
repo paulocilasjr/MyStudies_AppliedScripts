@@ -12,6 +12,7 @@ import tempfile
 from .copilot import summarize_evidence
 from .io import parse_jsonl
 from .results import read_run
+from .prompts import REPLY_FIELDS
 
 
 def verify_run(input_path: str | Path, output_dir: str | Path, *,
@@ -29,8 +30,8 @@ def verify_run(input_path: str | Path, output_dir: str | Path, *,
         if require_backend not in (None, "vllm"):
             raise ValueError("require_vllm conflicts with the requested backend")
         require_backend = "vllm"
-    if require_backend not in (None, "vllm", "transformers"):
-        raise ValueError("required backend must be vllm or transformers")
+    if require_backend not in (None, "vllm", "transformers", "nim"):
+        raise ValueError("required backend must be vllm, transformers, or nim")
     output = Path(output_dir).expanduser().resolve()
     if not output.is_dir():
         raise ValueError("completed run directory does not exist")
@@ -63,7 +64,7 @@ def verify_run(input_path: str | Path, output_dir: str | Path, *,
             r.get("review_required") is True and isinstance(r.get("limitations"), list) and r["limitations"]
             and all(isinstance(s, str) and s.strip() for s in r["limitations"]) for r in results)
         checks["narratives_present"] = bool(results) and all(isinstance(r.get("narrative"), str) and r["narrative"].strip() for r in results)
-        quality_status = {"mock": "mock", "vllm": "passed", "transformers": "passed", "fallback": "fallback"}
+        quality_status = {"mock": "mock", "vllm": "passed", "transformers": "passed", "nim": "passed", "fallback": "fallback"}
         checks["source_quality_consistent"] = all(
             r.get("narrative_source") in quality_status and isinstance(r.get("quality"), dict)
             and r["quality"].get("status") == quality_status[r["narrative_source"]]
@@ -86,11 +87,18 @@ def verify_run(input_path: str | Path, output_dir: str | Path, *,
             backend = manifest.get("backend", {})
             execution = backend.get("execution", {})
             calls, records = execution.get("generation_calls"), execution.get("generated_records")
-            checks[f"local_{require_backend}_executed"] = (
+            recorded = (
                 backend.get("backend") == require_backend and "generator" not in backend
-                and execution.get("model_loaded") is True
                 and type(calls) is int and calls > 0
                 and type(records) is int and records >= len(patients))
+            if require_backend == "nim":
+                requests, successes = execution.get("remote_requests"), execution.get("remote_successes")
+                checks["remote_nim_executed"] = (
+                    recorded and records >= len(patients) * len(REPLY_FIELDS)
+                    and type(successes) is int and successes >= records
+                    and type(requests) is int and requests >= successes)
+            else:
+                checks[f"local_{require_backend}_executed"] = recorded and execution.get("model_loaded") is True
             checks["all_generated_narratives_accepted"] = counts == {require_backend: len(patients)}
             checks[f"result_backend_is_{require_backend}"] = all(
                 isinstance(r.get("provenance"), dict) and r["provenance"].get("backend") == require_backend

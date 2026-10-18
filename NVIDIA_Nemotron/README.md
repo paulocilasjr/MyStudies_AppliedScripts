@@ -2,7 +2,7 @@
 
 This is Paulo's interpretive layer for the hackathon. It accepts clinical, multiplex immunofluorescence (mIF), and late-fusion prediction scores, then produces reviewable research summaries for Junhao's demo. It runs independently of the prediction models, so integration can start with the included synthetic cases.
 
-The local GPU backend uses NVIDIA's `Nemotron-Mini-4B-Instruct` weights through vLLM. NVIDIA describes this general-purpose model for roleplaying, retrieval-augmented generation, and function calling; this repository does not establish clinical validity. See the [NVIDIA model card](https://huggingface.co/nvidia/Nemotron-Mini-4B-Instruct). The implementation is a local vLLM deployment; NVIDIA NIM is a separate serving product.
+The default inference paths use NVIDIA's `Nemotron-Mini-4B-Instruct` weights locally through vLLM or Hugging Face Transformers. NVIDIA describes this general-purpose model for roleplaying, retrieval-augmented generation, and function calling; this repository does not establish clinical validity. See the [NVIDIA model card](https://huggingface.co/nvidia/Nemotron-Mini-4B-Instruct). An explicit `nim` backend also supports NVIDIA's hosted API for the synthetic demonstration, using `nvidia/nemotron-3-ultra-550b-a55b` by default. It sends the selected prompt evidence to NVIDIA and records its hosted provenance separately; see the [hosted NVIDIA guide](docs/nim.md).
 
 The input is **predictions already produced by the clinical/mIF/fusion models**, plus patient evidence and context. This component does not train those predictors or calculate predictions directly from raw clinical tables, slides, or images. The response endpoint remains undecided.
 
@@ -35,6 +35,18 @@ Each run writes a new `results/local-mvp-<timestamp>/` root containing `SUMMARY.
 
 Local results record `narrative_source: "transformers"`, distinct from HPC `vllm` output. The weights, revision, prompt and greedy settings are the same. vLLM's JSON-schema guided decoding is replaced by a forced `{"text": "` reply prefix, so wording can differ from an A30 run. On MPS the backend uses eager attention, because PyTorch 2.8's half-precision scaled-dot-product attention produces only padding tokens at this prompt length. The automated screen applies unchanged: if any generated part is rejected, the report uses labelled deterministic prose for all three parts, and the run summary reports it. Behind an institutional TLS-inspection proxy, `prepare-model` uses the operating system's certificate store via `truststore`.
 
+## Generate the five synthetic reports through NVIDIA's hosted API
+
+With Python 3.11 or newer, run:
+
+```bash
+python3 scripts/run_nim_demo.py
+```
+
+The runner uses the Python standard library and prompts for `NVIDIA_API_KEY` with hidden input if it is absent from the environment. The key is kept out of command arguments and saved artifacts. It imports the current S01–S05 handoff, sends the same focused report prompts and interpretation skill to NVIDIA, verifies that every report contains accepted `nim` generation, then exports a new UI bundle and refreshes `exports/ICB_Patient_Explorer.html`. Open that HTML file to view the saved patient reports without running a server. A failed generation or strict verification leaves diagnostic results and stops the export.
+
+This is an external inference request using a different model from the local Mini 4B. The current prompts send selected textual evidence about score agreement, the computed hypothesis, and clinical feature names, values, directions, and curated literature notes, plus the packaged instructions and synthetic examples. Patient IDs, response labels, raw images, and free-form patient context are excluded. The same report rendering and screening pipeline applies, while wording and model behavior can differ. Hosted model revisions are provider-managed. See [NVIDIA's model page](https://build.nvidia.com/nvidia/nemotron-3-ultra-550b-a55b) and the [hosted guide](docs/nim.md) for model selection, options, data flow, and viewer refresh commands. Local inference remains the default for the existing local and HPC runners.
+
 ## Run the local demonstration
 
 From this folder, with Python 3.11 or newer:
@@ -53,7 +65,7 @@ The supplied `examples/paulo_handoff/` packet includes synthetic patients S01–
 bash scripts/run_handoff.sh --backend mock --output-dir results/handoff-local-001
 ```
 
-Use a new output directory for each run. The `input/` folder contains canonical patient JSONL and an audit; `experiment/` contains structured narratives and verification; `ui/` contains scores, generated narrative JSON, and all twenty original PNG/PDF figures. The supplied placeholder narratives are excluded. In the updated packet, clinical SHAP JSON agrees with clinical scores within the declared rounding checks, while the supplied clinical images remain stale. Those plots remain available with visible warnings. The additional `prob_mif_real` conflicts with each CSV mIF score, and `tile_prob` duplicates tile attention weights; the audit preserves these distinctions and keeps tile tables under `ui/source_data/`, outside the response-probability heatmap contract.
+Use a new output directory for each run. The `input/` folder contains canonical patient JSONL and an audit; `experiment/` contains structured narratives and verification; `ui/` contains scores, generated narrative JSON, and all twenty original PNG/PDF figures. The supplied placeholder narratives are excluded. In the merged v3 packet, clinical SHAP JSON agrees with clinical scores within the declared rounding checks; corrected clinical PNG labels pass the recorded partial visual checks. The merge updates S02’s mIF and fused scores and removes the conflicting `prob_mif_real` fields. The `tile_prob` column still duplicates tile attention weights; the audit keeps tile tables under `ui/source_data/`, outside the response-probability heatmap contract.
 
 The local companion adds a patient dropdown and both figure panels to the compatible UI bundle. In a separate Python environment:
 
@@ -75,7 +87,7 @@ Copy this folder to an approved shared HPC project location, then run from the c
 bash run_hpc.sh --smoke
 ```
 
-The runner submits a SLURM job on the `red` partition with one A30 GPU, creates an isolated Python environment, prepares the pinned public model snapshot, and executes the synthetic experiment. First-time setup needs access to package and model repositories. Later inference uses the local model files with offline settings. Patient inputs are not sent to a hosted inference API.
+The runner submits a SLURM job on the `red` partition with one A30 GPU, creates an isolated Python environment, prepares the pinned public model snapshot, and executes the synthetic experiment. First-time setup needs access to package and model repositories. Later inference uses the local model files with offline settings. This HPC runner does not send patient inputs to a hosted inference API; the separate, explicitly selected `nim` backend does send its prompts to NVIDIA.
 
 `--smoke` then writes `verification.json` and requires every synthetic narrative to come from real vLLM generation and pass the implemented screen. A mock backend, injected test generator, changed scores, or any fallback narrative fails this acceptance check. Results remain available for diagnosis. Passing the check verifies execution and interfaces; it does not certify clinical correctness. Submission prints a job ID and returns before the GPU job finishes.
 
@@ -144,7 +156,7 @@ The application computes the comparison, the plain-word `situation` and the stro
 | `manifest.json` | Run configuration, input identity, backend, and runtime provenance. |
 | `metrics.json` | Available prediction evaluation; unlabeled synthetic cases cannot establish predictive performance. |
 
-Every result requires human review. `narrative_source` distinguishes deterministic mock text, Nemotron output, and a deterministic fallback. A quality check can reject generated text and replace it with a grounded fallback; passing that check only means the implemented checks passed. It does not establish medical correctness. The UI should display the source, limitations, and review flag alongside the narrative.
+Every result requires human review. `narrative_source` distinguishes deterministic `mock` text, local `vllm` or `transformers` output, hosted NVIDIA `nim` output, and a deterministic `fallback`. A quality check can reject generated text and replace it with a grounded fallback; passing that check only means the implemented checks passed. It does not establish medical correctness. The UI should display the source, limitations, and review flag alongside the narrative.
 
 ## Interpret the demonstration accurately
 

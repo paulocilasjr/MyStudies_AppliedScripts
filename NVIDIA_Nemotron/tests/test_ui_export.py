@@ -46,6 +46,64 @@ class UIExportTests(unittest.TestCase):
     def write_records(self, run, rows):
         (run / "narratives.jsonl").write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
 
+    def nim_run_fixture(self):
+        """Build an on-disk provider-result fixture; no remote requests are made."""
+        source, run, output = self.make_run()
+        model = {"model_id": "nvidia/nemotron-3-ultra-550b-a55b", "revision": "provider-managed"}
+        rows = self.records(run / "narratives.jsonl")
+        for row in rows:
+            row["narrative_source"] = "nim"
+            row["quality"]["status"] = "passed"
+            row["provenance"].pop("generator", None)
+            row["provenance"].update(backend="nim", model=model)
+        self.write_records(run, rows)
+        manifest = json.loads((run / "manifest.json").read_text())
+        manifest.update(backend={"backend": "nim", "model": model}, source_counts={"nim": 1}, quality_counts={"passed": 1})
+        (run / "manifest.json").write_text(json.dumps(manifest))
+        return source, run, output
+
+    def test_nim_export_preserves_remote_identity_and_model_provenance(self):
+        _, run, output = self.nim_run_fixture()
+        summary = export_ui_bundle(run, output)
+        self.assertEqual(summary["source_counts"], {"nim": 1})
+        text = json.loads((output / "narratives.json").read_text())["P48"]
+        self.assertIn("NVIDIA-hosted NIM; remote inference", text)
+        self.assertIn("nvidia/nemotron-3-ultra-550b-a55b", text)
+        self.assertIn("revision: provider-managed", text)
+        self.assertIn("quality: passed", text)
+        self.assertEqual((output / "copilot_results.jsonl").read_bytes(), (run / "narratives.jsonl").read_bytes())
+
+    def test_nim_source_quality_and_model_must_agree_with_run(self):
+        for corruption in ("source", "quality", "backend", "model", "generator", "manifest_model"):
+            with self.subTest(corruption=corruption):
+                _, run, output = self.nim_run_fixture()
+                rows = self.records(run / "narratives.jsonl")
+                if corruption == "source":
+                    rows[0]["narrative_source"] = "transformers"
+                elif corruption == "quality":
+                    rows[0]["quality"]["status"] = "mock"
+                elif corruption == "backend":
+                    rows[0]["provenance"]["backend"] = "mock"
+                elif corruption == "model":
+                    rows[0]["provenance"]["model"]["model_id"] = "unrecorded-model"
+                elif corruption == "generator":
+                    rows[0]["provenance"]["generator"] = "injected"
+                else:
+                    manifest = json.loads((run / "manifest.json").read_text())
+                    del manifest["backend"]["model"]
+                    (run / "manifest.json").write_text(json.dumps(manifest))
+                self.write_records(run, rows)
+                with self.assertRaises(ValueError):
+                    export_ui_bundle(run, output)
+                self.assertFalse(output.exists())
+
+    def test_nim_injected_generator_is_disclosed_without_inventing_a_model(self):
+        _, run, output = self.make_run(copilot=Copilot(backend="nim", generator=generator()))
+        export_ui_bundle(run, output)
+        text = json.loads((output / "narratives.json").read_text())["P48"]
+        self.assertIn("injected test generator", text)
+        self.assertNotIn("NIM model:", text)
+
     def test_complete_subset_maps_actual_ui_contract_without_inventing_missing_scores(self):
         source, run, output = self.make_run([self.complete("001"), clinical_only("P07"), self.complete("P12")])
         summary = export_ui_bundle(run, output)

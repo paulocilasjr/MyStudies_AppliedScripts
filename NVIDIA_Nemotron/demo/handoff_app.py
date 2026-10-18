@@ -5,6 +5,7 @@ streamlit run demo/handoff_app.py -- --bundle-dir results/handoff/ui [--api-url 
 
 With --api-url, the displayed patient's supplied evidence (never its label) can be
 sent to the loopback copilot API (`nemotron_copilot serve`) for live regeneration.
+That API may use a local model or the NVIDIA-hosted NIM backend.
 The stdlib loader is deliberately importable without Streamlit or GPU packages.
 """
 from __future__ import annotations
@@ -24,10 +25,11 @@ import urllib.request
 MODALITIES = ("clinical", "mif", "fused")
 LABELS = {"clinical": "Clinical", "mif": "Spatial mIF", "fused": "Fused"}
 MAX_ASSET_BYTES = 64 * 1024 * 1024
-SOURCE_QUALITY = {"mock": "mock", "vllm": "passed", "transformers": "passed", "fallback": "fallback"}
+SOURCE_QUALITY = {"mock": "mock", "vllm": "passed", "transformers": "passed", "nim": "passed", "fallback": "fallback"}
 SOURCE_TEXT = {"mock": "Mock — no language model executed",
                "fallback": "Deterministic fallback — generated text failed screening",
                "vllm": "vLLM generated text — heuristic screen passed",
+               "nim": "NVIDIA-hosted NIM generated text (remote inference) — heuristic screen passed",
                "transformers": "Local Nemotron generated text (Hugging Face Transformers) — heuristic screen passed"}
 LIVE_FIELDS = ("schema_version", "patient_id", "predictions", "top_features", "clinical_context", "response_definition")
 
@@ -154,15 +156,28 @@ def load_bundle(directory: str | Path) -> dict:
             raise ValueError("duplicate or unknown patient in copilot results")
         source = result.get("narrative_source")
         quality = result.get("quality")
-        if source not in SOURCE_QUALITY or not isinstance(quality, dict):
+        if not isinstance(source, str) or source not in SOURCE_QUALITY or not isinstance(quality, dict):
             raise ValueError("copilot source and quality are required")
         expected = SOURCE_QUALITY[source]
         if quality.get("status") != expected or result.get("review_required") is not True:
             raise ValueError("copilot source/quality/review metadata disagree")
-        _strings(quality.get("issues"), "quality issues")
+        issues = _strings(quality.get("issues"), "quality issues")
+        if bool(issues) != (source == "fallback"):
+            raise ValueError("copilot source and screen issues disagree")
         _strings(result.get("limitations"), "limitations")
         if not isinstance(result.get("provenance"), dict):
             raise ValueError("copilot provenance is required")
+        provenance = result["provenance"]
+        backend = provenance.get("backend")
+        if (not isinstance(backend, str) or backend not in {"mock", "vllm", "transformers", "nim"}
+                or (backend == "mock") != (source == "mock")
+                or (source not in {"mock", "fallback"} and source != backend)):
+            raise ValueError("copilot source and backend provenance disagree")
+        if backend == "nim" and provenance.get("generator") != "injected":
+            model = provenance.get("model")
+            if (not isinstance(model, dict) or not isinstance(model.get("model_id"), str)
+                    or not model["model_id"].strip() or model.get("revision") != "provider-managed"):
+                raise ValueError("NIM provenance must identify its provider-managed model")
         if not isinstance(result.get("narrative"), str) or not result["narrative"].strip() or result["narrative"] not in narratives[pid]:
             raise ValueError("display narrative must preserve its patient's structured copilot narrative")
         for m in MODALITIES:
@@ -283,17 +298,34 @@ def live_interpret(api_url: str, result: dict) -> dict:
     return _call_api(api_url + "/v1/interpret", {key: result[key] for key in LIVE_FIELDS}, timeout=900)
 
 
+def source_text(result: dict) -> str:
+    """Describe recorded generation provenance without inferring execution details."""
+    source = result.get("narrative_source")
+    text = SOURCE_TEXT.get(source, str(source))
+    provenance = result.get("provenance", {})
+    if provenance.get("generator") == "injected":
+        text += " (injected test generator)"
+    model = provenance.get("model", {})
+    if provenance.get("backend") == "nim" and isinstance(model, dict) and model.get("model_id"):
+        text += " · " + model["model_id"] + " · revision: " + str(model.get("revision", "not recorded"))
+    return text
+
+
 def live_panel(st, api_url: str, pid: str, result: dict) -> None:
-    st.subheader("Live local Nemotron")
+    st.subheader("Live Nemotron")
     try:
         health = api_health(api_url)
     except (OSError, ValueError) as exc:
-        st.error(f"The local copilot API at {api_url} is not reachable ({type(exc).__name__}). Start it with run_local_mvp.sh.")
+        st.error(f"The loopback copilot API at {api_url} is not reachable ({type(exc).__name__}). Start nemotron_copilot serve with the intended backend.")
         return
-    st.caption(f"Connected to {api_url} · backend {health.get('backend')} · model loaded: {health.get('model_loaded')}. "
-               "Only this patient's supplied evidence is sent; the synthetic label is not.")
+    hosted = health.get("backend") == "nim"
+    execution = ("NVIDIA-hosted NIM · remote inference" if hosted else
+                 f"backend {health.get('backend')} · model loaded locally: {health.get('model_loaded')}")
+    destination = "NVIDIA's hosted API" if hosted else "the loopback copilot API"
+    st.caption(f"Connected to loopback copilot API {api_url} · {execution}. "
+               f"This patient's supplied evidence is sent to {destination}; the synthetic label is not.")
     if st.button("Generate this patient's narrative live", key=f"live-{pid}"):
-        with st.spinner("Nemotron is generating on this computer…"):
+        with st.spinner("NVIDIA-hosted NIM is generating remotely…" if hosted else "Nemotron is generating on this computer…"):
             started = time.monotonic()
             try:
                 live = live_interpret(api_url, result)
@@ -306,9 +338,8 @@ def live_panel(st, api_url: str, pid: str, result: dict) -> None:
     entry = st.session_state.get("live_results", {}).get(pid)
     if entry:
         live = entry["result"]
-        source = live.get("narrative_source")
         quality = live.get("quality", {})
-        st.text(f"Source: {SOURCE_TEXT.get(source, source)} · {entry['seconds']:.1f}s")
+        st.text(f"Source: {source_text(live)} · {entry['seconds']:.1f}s")
         if quality.get("issues"):
             st.warning("Screen issues: " + ", ".join(quality["issues"]))
         st.text(live.get("narrative", ""))
@@ -384,11 +415,7 @@ def main(argv=None):
             notes.extend(entry.get("warnings", []))
         st.text("\n\n".join(dict.fromkeys(notes)))
     st.subheader("Copilot report")
-    source = result["narrative_source"]
-    source_text = SOURCE_TEXT[source]
-    if result["provenance"].get("generator") == "injected":
-        source_text += " (injected test generator)"
-    st.text("Source: " + source_text)
+    st.text("Source: " + source_text(result))
     st.text("Quality: " + result["quality"]["status"] + " · independent human review required")
     if result["quality"]["issues"]:
         st.warning("Screen issues: " + ", ".join(result["quality"]["issues"]))

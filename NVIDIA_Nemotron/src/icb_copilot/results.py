@@ -13,8 +13,8 @@ from .schema import ContractError, PatientPrediction
 EVIDENCE_FIELDS = ("schema_version", "patient_id", "predictions", "top_features", "clinical_context", "response_definition")
 RESULT_FIELDS = set(EVIDENCE_FIELDS) | {"narrative", "narrative_source", "review_required", "limitations", "comparison", "quality", "provenance"}
 RUN_ARTIFACTS = ("narratives.jsonl", "narratives.csv", "report.md", "manifest.json", "metrics.json")
-SOURCE_QUALITY = {"mock": "mock", "vllm": "passed", "transformers": "passed", "fallback": "fallback"}
-RUN_BACKENDS = {"mock", "vllm", "transformers"}
+SOURCE_QUALITY = {"mock": "mock", "vllm": "passed", "transformers": "passed", "nim": "passed", "fallback": "fallback"}
+RUN_BACKENDS = {"mock", "vllm", "transformers", "nim"}
 
 
 def _text(value, name, *, limit=20_000):
@@ -58,7 +58,7 @@ def _validate_result(value, backend, gap_threshold):
     _strings(value["limitations"], "result limitations", nonempty=True)
     source = value["narrative_source"]
     if not isinstance(source, str) or source not in SOURCE_QUALITY:
-        raise ContractError("result narrative_source must be mock, vllm, transformers, or fallback")
+        raise ContractError("result narrative_source must be mock, vllm, transformers, nim, or fallback")
     if (backend == "mock") != (source == "mock") or (source not in {"mock", "fallback"} and source != backend):
         raise ContractError("result narrative source conflicts with the run backend")
     quality = value["quality"]
@@ -103,7 +103,7 @@ def _validate_result(value, backend, gap_threshold):
 
 
 def read_run(run):
-    """Read one completed local run and validate critical result invariants.
+    """Read one completed run from local files and validate critical result invariants.
 
     Return manifest, manifest bytes, result bytes, results, and canonical evidence.
     These checks validate structural consistency, not clinical correctness.
@@ -122,7 +122,12 @@ def read_run(run):
         raise ContractError("run manifest requires a valid input_sha256")
     backend_info = manifest.get("backend")
     if not isinstance(backend_info, dict) or not isinstance(backend_info.get("backend"), str) or backend_info["backend"] not in RUN_BACKENDS:
-        raise ContractError("run manifest backend must be mock, vllm, or transformers")
+        raise ContractError("run manifest backend must be mock, vllm, transformers, or nim")
+    if backend_info["backend"] == "nim" and backend_info.get("generator") != "injected":
+        model = backend_info.get("model")
+        if not isinstance(model, dict) or model.get("revision") != "provider-managed":
+            raise ContractError("NIM run must identify its provider-managed model")
+        _text(model.get("model_id"), "NIM model_id")
     gap_threshold = _finite(manifest.get("disagreement_threshold"), "run disagreement_threshold")
     if not 0 < gap_threshold <= 1:
         raise ContractError("run disagreement_threshold must be in (0, 1]")
@@ -135,6 +140,10 @@ def read_run(run):
                 raise ContractError("result exceeds maximum size")
             result = _strict_json(line)
             patient = _validate_result(result, backend_info["backend"], gap_threshold)
+            if backend_info["backend"] == "nim":
+                for key in ("generator", "model"):
+                    if result["provenance"].get(key) != backend_info.get(key):
+                        raise ContractError(f"NIM result {key} provenance conflicts with the run manifest")
             patient_id = patient["patient_id"]
             if patient_id in seen:
                 raise ContractError("duplicate result patient ID")

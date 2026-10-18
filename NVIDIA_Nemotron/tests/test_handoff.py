@@ -11,7 +11,7 @@ import shutil
 import tempfile
 import unittest
 
-from icb_copilot.handoff import canonical_jsonl_bytes, prepare_handoff, read_handoff
+from icb_copilot.handoff import _clinical_figure_audit, canonical_jsonl_bytes, prepare_handoff, read_handoff
 from icb_copilot.schema import ContractError
 
 SOURCE = Path(__file__).resolve().parents[1] / "examples" / "paulo_handoff"
@@ -49,7 +49,7 @@ class HandoffTests(unittest.TestCase):
         dataset = read_handoff(self.source)
         self.assertEqual([p["patient_id"] for p in dataset["patients"]], ["S01", "S02", "S03", "S04", "S05"])
         self.assertEqual(len(dataset["assets"]), 20)
-        expected = [(0.9708, 0.8706, 0.9956, 1), (0.0734, 0.0933, 0.0081, 0),
+        expected = [(0.9708, 0.8706, 0.9956, 1), (0.0734, 0.1055, 0.0093, 0),
                     (0.1142, 0.7966, 0.3355, 1), (0.9643, 0.1376, 0.8116, 1), (0.5824, 0.8955, 0.9228, 0)]
         for patient, (clinical, mif, fused, label) in zip(dataset["patients"], expected):
             self.assertEqual([patient["predictions"][m]["probability"] for m in ("clinical", "mif", "fused")], [clinical, mif, fused])
@@ -73,11 +73,11 @@ class HandoffTests(unittest.TestCase):
         self.assertEqual(dataset["original_analysis"]["S01"]["clinical"]["features"][0]["shap"], 0.2105)
         self.assertEqual(dataset["global_importance"]["clinical"][0]["importance"], 0.22)
 
-    def test_updated_structured_shap_matches_with_explicit_rounding_and_separate_stale_plots(self):
+    def test_v3_structured_shap_and_observed_plot_labels_match_with_explicit_rounding(self):
         dataset = read_handoff(self.source)
         self.assertEqual(dataset["report"]["clinical_shap_mismatch_count"], 0)
         self.assertEqual(dataset["report"]["clinical_shap_imported_count"], 5)
-        self.assertEqual(dataset["report"]["clinical_plot_mismatch_count"], 5)
+        self.assertEqual(dataset["report"]["clinical_plot_mismatch_count"], 0)
         outputs = [0.9708, 0.0734, 0.1142, 0.9643, 0.5824]
         for index, audit in enumerate(dataset["report"]["patients"].values()):
             self.assertEqual(audit["clinical_shap"]["output_value"], outputs[index])
@@ -86,7 +86,8 @@ class HandoffTests(unittest.TestCase):
             self.assertTrue(audit["clinical_shap"]["attributions_imported"])
             self.assertAlmostEqual(audit["clinical_shap"]["additivity_tolerance"], 7 * 0.00005)
             self.assertFalse(audit["clinical_shap"]["provenance_independently_validated"])
-            self.assertTrue(audit["clinical_figure"]["mismatch_detected"])
+            self.assertTrue(audit["clinical_figure"]["manual_png_audit"])
+            self.assertFalse(audit["clinical_figure"]["mismatch_detected"])
             self.assertTrue(audit["fusion"]["rounding_compatible"])
             self.assertTrue(audit["fusion"]["supplied_score_preserved"])
             self.assertTrue(any("source-declared" in warning for warning in audit["warnings"]))
@@ -96,8 +97,17 @@ class HandoffTests(unittest.TestCase):
 
     def test_optional_alternate_mif_score_is_audited_without_replacing_csv(self):
         dataset = read_handoff(self.source)
-        self.assertEqual(dataset["report"]["mif_score_mismatch_count"], 5)
+        self.assertEqual(dataset["report"]["mif_score_mismatch_count"], 0)
+        for audit in dataset["report"]["patients"].values():
+            self.assertIsNone(audit["mif_score"]["prob_mif_real"])
+            self.assertIsNone(audit["mif_score"]["matches_csv"])
         expected = [0.9402, 0.7570, 0.9857, 0.9909, 0.9942]
+        def add_alternate_scores(data):
+            for record, alternate in zip(data.values(), expected):
+                record["prob_mif_real"] = alternate
+        self.mutate_json("patient_feature_analysis.json", add_alternate_scores)
+        dataset = read_handoff(self.source)
+        self.assertEqual(dataset["report"]["mif_score_mismatch_count"], 5)
         for patient, alternate in zip(dataset["patients"], expected):
             audit = dataset["report"]["patients"][patient["patient_id"]]["mif_score"]
             self.assertEqual(audit["prob_mif_real"], alternate)
@@ -131,7 +141,7 @@ class HandoffTests(unittest.TestCase):
     def test_legacy_packet_without_alternate_scores_or_tiles_remains_supported(self):
         def legacy(data):
             for index, record in enumerate(data.values()):
-                record.pop("prob_mif_real")
+                record.pop("prob_mif_real", None)
                 record["mif"] = record["mif"][:5]
                 record["clinical"]["base_value"] = 0.5
                 record["clinical"]["output_value"] = [0.91, 0.05, 0.39, 0.96, 0.59][index]
@@ -168,11 +178,14 @@ class HandoffTests(unittest.TestCase):
     def test_known_manual_figure_findings_are_hash_conditional(self):
         dataset = read_handoff(self.source)
         for pid in ("S01", "S02", "S03", "S04", "S05"):
-            notes = dataset["report"]["patients"][pid]["warnings"]
-            self.assertTrue(any("Manual audit of this original PNG" in note for note in notes))
+            audit = dataset["report"]["patients"][pid]["clinical_figure"]
+            self.assertTrue(audit["manual_png_audit"])
+            self.assertFalse(audit["mismatch_detected"])
         figure = self.source / "figures" / "clinical_shap" / "shap_waterfall_S01.png"
         figure.write_bytes(figure.read_bytes() + b"\n")
         changed = read_handoff(self.source)
+        self.assertFalse(changed["report"]["patients"]["S01"]["clinical_figure"]["manual_png_audit"])
+        self.assertIsNone(changed["report"]["patients"]["S01"]["clinical_figure"]["mismatch_detected"])
         self.assertFalse(any("Manual audit of this original PNG" in note for note in changed["report"]["patients"]["S01"]["warnings"]))
         self.assertTrue(any("not automatically validated" in note for note in changed["assets"][0]["warnings"]))
 
@@ -191,8 +204,16 @@ class HandoffTests(unittest.TestCase):
         dataset = read_handoff(self.source)
         audit = dataset["report"]["patients"]["S01"]["clinical_figure"]
         self.assertTrue(audit["manual_png_audit"])
-        self.assertFalse(audit["mismatch_detected"])
-        self.assertEqual(audit["mismatches"], [])
+        self.assertTrue(audit["mismatch_detected"])
+        self.assertTrue(any("displayed output" in text for text in audit["mismatches"]))
+        self.assertTrue(any("Manual audit of this original PNG" in note for note in dataset["report"]["patients"]["S01"]["warnings"]))
+        # The retained v2 observations still match their original values, while
+        # the corrected v3 image must flag those same values as inconsistent.
+        original = _clinical_figure_audit(
+            "13b38cf9f45cd66c2844889c394b646f595ca68f2f7d3091824361b6783bd2c2",
+            dataset["original_analysis"]["S01"]["clinical"], 0.91)
+        self.assertFalse(original["mismatch_detected"])
+        self.assertEqual(original["mismatches"], [])
 
     def test_tile_tables_are_fingerprinted_and_audited_as_attention_not_response(self):
         dataset = read_handoff(self.source)

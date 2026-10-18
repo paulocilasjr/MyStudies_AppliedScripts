@@ -7,12 +7,13 @@ import threading
 from typing import Callable
 
 from .backends import PROMPT_VERSION, TransformersBackend, VLLMBackend, build_messages
+from .nim import NIMBackend
 from .prompts import PROMPT_SHA256, REPLY_FIELDS
 from .report import fallback_sections, hypothesis, plain_name, render_report
 from .schema import MODALITIES, ContractError, PatientPrediction
 
-# Real local model engines; each is also the narrative_source of its accepted generations.
-GENERATIVE_BACKENDS = {"vllm": VLLMBackend, "transformers": TransformersBackend}
+# Each engine name is also the narrative_source of its accepted generations.
+GENERATIVE_BACKENDS = {"vllm": VLLMBackend, "transformers": TransformersBackend, "nim": NIMBackend}
 
 
 def summarize_evidence(patient: dict, *, disagreement_threshold: float = 0.20) -> tuple[dict, list[str]]:
@@ -206,7 +207,7 @@ class Copilot:
     def __init__(self, backend: str = "vllm", model_path: str | None = None, *,
                  generator: Callable | None = None, disagreement_threshold: float = 0.20, **settings):
         if backend != "mock" and backend not in GENERATIVE_BACKENDS:
-            raise ValueError("backend must be mock, vllm, or transformers")
+            raise ValueError("backend must be mock, vllm, transformers, or nim")
         if not 0 < disagreement_threshold <= 1:
             raise ValueError("disagreement_threshold must be in (0, 1]")
         if backend == "mock" and (generator is not None or settings):
@@ -216,9 +217,14 @@ class Copilot:
         self._generator = generator
         self._engine = None
         if backend in GENERATIVE_BACKENDS and generator is None:
-            if model_path is None:
+            if backend == "nim":
+                if model_path is not None:
+                    raise ValueError("nim uses a hosted model_id, not a local model_path")
+                self._engine = NIMBackend(**settings)
+            elif model_path is None:
                 raise ValueError(f"{backend} requires model_path for a local prepared snapshot")
-            self._engine = GENERATIVE_BACKENDS[backend](model_path, **settings)
+            else:
+                self._engine = GENERATIVE_BACKENDS[backend](model_path, **settings)
         self._lock = threading.Lock()
 
     @property

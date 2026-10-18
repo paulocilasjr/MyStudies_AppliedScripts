@@ -1,7 +1,9 @@
 """Exercise the synthetic file viewer, including an optional actual AppTest."""
 import csv
+from contextlib import nullcontext, redirect_stdout
 import hashlib
 import importlib.util
+import io
 import json
 from pathlib import Path
 import shutil
@@ -10,6 +12,7 @@ import sys
 import tempfile
 import threading
 import unittest
+from unittest.mock import Mock, patch
 
 from icb_copilot.copilot import Copilot
 from icb_copilot.handoff import read_handoff
@@ -56,15 +59,97 @@ class HandoffDemoTests(unittest.TestCase):
     def write_results(self, results):
         (self.bundle / "copilot_results.jsonl").write_text("".join(json.dumps(r) + "\n" for r in results), encoding="utf-8")
 
-    def test_five_supplied_cases_keep_scores_labels_and_warn_about_stale_figures_and_mif_linkage(self):
+    def nim_results_fixture(self):
+        """Provider-result snapshot fixture for the viewer, with no network calls."""
+        rows = self.results()
+        for row in rows:
+            row["narrative_source"] = "nim"
+            row["quality"]["status"] = "passed"
+            row["provenance"].pop("generator", None)
+            row["provenance"].update(backend="nim", model={"model_id": "nvidia/nemotron-3-ultra-550b-a55b",
+                                                           "revision": "provider-managed"})
+        self.write_results(rows)
+        return rows
+
+    def test_nim_snapshot_loads_with_remote_source_and_model_identity(self):
+        self.nim_results_fixture()
+        loaded = viewer.load_bundle(self.bundle)
+        for patient in loaded["patients"].values():
+            label = viewer.source_text(patient["result"])
+            self.assertIn("NVIDIA-hosted NIM generated text (remote inference)", label)
+            self.assertIn("nvidia/nemotron-3-ultra-550b-a55b", label)
+            self.assertIn("provider-managed", label)
+            self.assertNotIn("Local", label)
+
+    def test_nim_requires_matching_source_backend_model_and_quality(self):
+        original = self.nim_results_fixture()
+        for corruption in ("backend", "quality", "model", "revision", "issues"):
+            with self.subTest(corruption=corruption):
+                rows = json.loads(json.dumps(original))
+                if corruption == "backend":
+                    rows[0]["provenance"]["backend"] = "mock"
+                elif corruption == "quality":
+                    rows[0]["quality"]["status"] = "mock"
+                elif corruption == "model":
+                    del rows[0]["provenance"]["model"]
+                elif corruption == "revision":
+                    rows[0]["provenance"]["model"]["revision"] = "invented-local-revision"
+                else:
+                    rows[0]["quality"]["issues"] = ["Failed screening"]
+                self.write_results(rows)
+                with self.assertRaises(ValueError):
+                    viewer.load_bundle(self.bundle)
+
+    def test_nim_live_panel_describes_remote_backend_through_loopback_api(self):
+        result = self.nim_results_fixture()[0]
+        st = Mock()
+        st.session_state = {}
+        st.button.return_value = True
+        st.spinner.return_value = nullcontext()
+        with patch.object(viewer, "api_health", return_value={"backend": "nim", "model_loaded": False}), \
+                patch.object(viewer, "live_interpret", return_value=result) as generate:
+            viewer.live_panel(st, "http://127.0.0.1:8000", "S01", result)
+        generate.assert_called_once_with("http://127.0.0.1:8000", result)
+        caption = st.caption.call_args_list[0].args[0]
+        self.assertIn("loopback copilot API", caption)
+        self.assertIn("NVIDIA's hosted API", caption)
+        self.assertIn("remote inference", caption)
+        self.assertNotIn("model loaded", caption)
+        self.assertIn("remotely", st.spinner.call_args.args[0])
+
+    def test_standalone_html_retains_nim_identity_and_sanitized_provenance(self):
+        rows = self.nim_results_fixture()
+        rows[0]["provenance"]["model"]["local_path"] = "/private/machine-specific-model"
+        rows[0]["provenance"]["settings"] = {"api_key": "secret-test-sentinel"}
+        rows[1]["provenance"]["generator"] = "injected"
+        self.write_results(rows)
+        spec = importlib.util.spec_from_file_location("standalone_export", ROOT / "scripts/export_standalone_demo.py")
+        exporter = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(exporter)
+        output = self.bundle.parent / "viewer.html"
+        with redirect_stdout(io.StringIO()):
+            exporter.export(self.bundle, output)
+        html = output.read_text()
+        payload = json.loads(html.split("const DATA = ", 1)[1].split(";\nconst $", 1)[0])
+        self.assertEqual(len(payload["patients"]), 5)
+        for patient in payload["patients"]:
+            self.assertIn("NVIDIA-hosted NIM", patient["source_label"])
+            self.assertEqual(patient["provenance"]["model"], {"model_id": "nvidia/nemotron-3-ultra-550b-a55b", "revision": "provider-managed"})
+        self.assertNotIn("machine-specific-model", html)
+        self.assertNotIn("secret-test-sentinel", html)
+        self.assertIn("injected test generator", payload["patients"][1]["source_label"])
+        self.assertEqual(payload["patients"][1]["provenance"]["generator"], "injected")
+
+    def test_v3_cases_keep_scores_labels_and_remove_resolved_mismatch_warnings(self):
         loaded = viewer.load_bundle(self.bundle)
         self.assertEqual(list(loaded["patients"]), ["S01", "S02", "S03", "S04", "S05"])
         for patient in loaded["patients"].values():
             self.assertEqual(patient["result"]["narrative_source"], "mock")
             self.assertTrue(patient["result"]["review_required"])
             self.assertEqual(patient["analysis"]["clinical"]["output_value"], patient["scores"]["clinical"])
-            self.assertTrue(patient["clinical_plot_mismatch"])
-            self.assertFalse(patient["mif_score"]["matches_csv"])
+            self.assertFalse(patient["clinical_plot_mismatch"])
+            self.assertIsNone(patient["mif_score"]["matches_csv"])
+            self.assertIsNone(patient["mif_score"]["prob_mif_real"])
             self.assertEqual(set(patient["assets"]), {("clinical_shap", "png"), ("clinical_shap", "pdf"),
                                                        ("mif_contrast", "png"), ("mif_contrast", "pdf")})
         self.assertEqual(loaded["patients"]["S03"]["actual_response"], 1)
@@ -73,7 +158,7 @@ class HandoffDemoTests(unittest.TestCase):
         self.assertEqual(viewer.outcome_label(loaded["patients"]["S04"]["scores"]["fused"], 1), "True positive")
         self.assertEqual(viewer.outcome_label(loaded["patients"]["S05"]["scores"]["fused"], 0), "False positive")
         for pid in loaded["patients"]:
-            self.assertTrue(any("Manual audit" in text for text in loaded["patients"][pid]["warnings"]))
+            self.assertFalse(any("Manual audit" in text for text in loaded["patients"][pid]["warnings"]))
 
     def test_core_loader_imports_without_streamlit_or_gpu_packages(self):
         script = f"import runpy,sys; runpy.run_path({str(APP)!r},run_name='viewer_import'); assert not any(name in sys.modules for name in ('streamlit','torch','vllm','transformers'))"
@@ -258,8 +343,8 @@ class HandoffDemoTests(unittest.TestCase):
                 self.assertTrue(any(item.value == patient["result"]["narrative"] for item in at.main.text))
                 self.assertTrue(any(item.value == patient["narrative"] for item in at.text))
                 self.assertTrue(any("Mock — no language model executed" in item.value for item in at.text))
-                self.assertTrue(any("Clinical figure warning" in item.value for item in at.warning))
-                self.assertTrue(any("mIF score mismatch" in item.value for item in at.warning))
+                self.assertFalse(any("Clinical figure warning" in item.value for item in at.warning))
+                self.assertFalse(any("mIF score mismatch" in item.value for item in at.warning))
                 self.assertEqual(len(at.sidebar.selectbox), 0)
                 if pid == "S03":
                     self.assertTrue(any("false negative" in item.value for item in at.warning))

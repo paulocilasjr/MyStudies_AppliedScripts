@@ -11,12 +11,13 @@ from .copilot import Copilot
 from .experiment import run_experiment
 from .io import assemble_predictions, load_jsonl, write_jsonl
 from .models import doctor, prepare_model
+from .nim import DEFAULT_NIM_MODEL, DEFAULT_NIM_BASE_URL
 from .server import create_server
 from .verify import verify_run
 
 
 def _inference_arguments(parser):
-    parser.add_argument("--backend", choices=("mock", "vllm", "transformers"), default="vllm")
+    parser.add_argument("--backend", choices=("mock", "vllm", "transformers", "nim"), default="vllm")
     parser.add_argument("--model-path", help="prepared local snapshot; remote model names are not accepted")
     parser.add_argument("--max-tokens", type=int, default=200, help="reply budget for each report prose part")
     parser.add_argument("--max-model-len", type=int, default=4096)
@@ -25,20 +26,30 @@ def _inference_arguments(parser):
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--disagreement-threshold", type=float, default=0.20)
     parser.add_argument("--device", choices=("auto", "mps", "cpu"), default="auto", help="transformers backend only")
+    parser.add_argument("--nim-model", default=DEFAULT_NIM_MODEL, help="hosted NVIDIA model ID; nim backend only")
+    parser.add_argument("--nim-base-url", default=DEFAULT_NIM_BASE_URL)
+    parser.add_argument("--nim-timeout", type=float, default=120.0)
+    parser.add_argument("--nim-max-retries", type=int, default=2)
+    parser.add_argument("--nim-json-mode", choices=("json_schema", "json_object", "none"), default="json_schema")
 
 
 BACKEND_SETTINGS = {"vllm": ("max_tokens", "max_model_len", "gpu_memory_utilization", "seed", "temperature"),
-                    "transformers": ("max_tokens", "max_model_len", "seed", "temperature", "device")}
+                    "transformers": ("max_tokens", "max_model_len", "seed", "temperature", "device"),
+                    "nim": ("max_tokens", "seed", "temperature")}
 
 
 def _copilot(args):
     settings = {key: getattr(args, key) for key in BACKEND_SETTINGS.get(args.backend, ())}
+    if args.backend == "nim":
+        settings.update(model_id=args.nim_model, base_url=args.nim_base_url,
+                        timeout=args.nim_timeout, max_retries=args.nim_max_retries,
+                        json_mode=args.nim_json_mode)
     return Copilot(backend=args.backend, model_path=args.model_path,
                    disagreement_threshold=args.disagreement_threshold, **settings)
 
 
 def parser() -> argparse.ArgumentParser:
-    root = argparse.ArgumentParser(description="Local research interpretation of multimodal ICB prediction outputs")
+    root = argparse.ArgumentParser(description="Research interpretation of multimodal ICB prediction outputs")
     commands = root.add_subparsers(dest="command", required=True)
     experiment = commands.add_parser("experiment", help="generate narratives and experiment artifacts")
     _inference_arguments(experiment)
@@ -49,8 +60,8 @@ def parser() -> argparse.ArgumentParser:
     verify.add_argument("--input", required=True)
     verify.add_argument("--output-dir", required=True)
     verify.add_argument("--require-vllm", action="store_true")
-    verify.add_argument("--require-backend", choices=("vllm", "transformers"),
-                        help="require every narrative to be an accepted generation from this local model backend")
+    verify.add_argument("--require-backend", choices=("vllm", "transformers", "nim"),
+                        help="require accepted generations and execution evidence from this backend")
     verify.add_argument("--require-synthetic", action="store_true")
     verify.add_argument("--expected-model-id")
     verify.add_argument("--expected-model-revision")
@@ -142,7 +153,7 @@ def main(argv=None) -> int:
             finally:
                 server.server_close()
         return 0
-    except (ValueError, OSError, ImportError) as exc:
+    except (ValueError, OSError, ImportError, RuntimeError) as exc:
         print(f"copilot: {exc}", file=sys.stderr)
         return 2
 

@@ -28,6 +28,27 @@ FOUR_DECIMAL_ROUNDING = 0.00005
 # These observations apply only to the exact manually inspected source PNGs.
 # They are not an OCR validator and must disappear if a figure is replaced.
 KNOWN_PNG_AUDIT = {
+    # Handoff v3: partial visible-label observations, October 14, 2026.
+    "64c48eaeccae9753e46dca2c3dfc79fb5e97d55e8bd2eecfbb172f1668ac2f2e": {
+        "output_value": 0.97, "base_value": 0.50,
+        "feature_values": {"has_lung_mets": 1, "gender_male": 0, "met_stage": 1, "had_targeted_therapy": 0, "tissue_resection": 1},
+        "shap_values": {"has_lung_mets": 0.21, "gender_male": 0.09}},
+    "7a63756e9394544c1b6b6229b5b86d27ce6c2646c2273d530f06910d9c866173": {
+        "output_value": 0.07, "base_value": 0.50,
+        "feature_values": {"met_stage": 3, "tissue_resection": 0},
+        "shap_values": {"had_targeted_therapy": -0.25}},
+    "e60e4b678aedb2058779a8c9b272857f6c35e9be5dd31a9ad3bcf8eab08bb674": {
+        "output_value": 0.11, "base_value": 0.50,
+        "feature_values": {"gender_male": 0, "met_stage": 3},
+        "shap_values": {"had_targeted_therapy": -0.43, "gender_male": 0.12}},
+    "41a710e8e48ace646829a3dbee21f3f4dcf4dc0a76dd33f219e9b9fc04f7f885": {
+        "output_value": 0.96, "base_value": 0.50,
+        "feature_values": {"has_lung_mets": 1, "met_stage": 2, "tissue_resection": 1, "had_targeted_therapy": 0, "gender_male": 1},
+        "shap_values": {"has_lung_mets": 0.20, "met_stage": 0.17}},
+    "358b513fab4b1aa2859212274f4fcbc123a6e0f3d74ee60e51fd1397f2670c0e": {
+        "output_value": 0.58, "base_value": 0.50,
+        "feature_values": {"gender_male": 0, "has_lung_mets": 0, "had_targeted_therapy": 0, "tissue_resection": 1, "met_stage": 3},
+        "shap_values": {"gender_male": 0.17, "has_lung_mets": -0.15, "had_targeted_therapy": 0.12, "tissue_resection": -0.06}},
     "13b38cf9f45cd66c2844889c394b646f595ca68f2f7d3091824361b6783bd2c2": {
         "output_value": 0.91, "base_value": 0.50,
         "feature_values": {"has_lung_mets": 1, "had_targeted_therapy": 0, "gender_male": 0, "tissue_resection": 1, "met_stage": 2},

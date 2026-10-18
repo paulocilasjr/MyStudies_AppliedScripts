@@ -28,7 +28,7 @@ class HandoffExportTests(unittest.TestCase):
         run_experiment(self.source, self.run, Copilot(backend="mock"))
         self.output = self.root / "ui"
 
-    def test_complete_bundle_preserves_labels_plots_and_discloses_mismatches(self):
+    def test_complete_bundle_preserves_v3_labels_plots_and_evidence_limits(self):
         summary = export_handoff_bundle(PACKET, self.run, self.output)
         self.assertEqual(summary["patient_count"], 5)
         self.assertEqual(summary["source_counts"], {"mock": 5})
@@ -46,7 +46,8 @@ class HandoffExportTests(unittest.TestCase):
             self.assertNotIn("[Placeholder", text)
             self.assertIn("SYNTHETIC DEMONSTRATION", text)
             self.assertIn("mock (no language model executed)", text)
-            self.assertIn("prob_mif_real", text)
+            self.assertNotIn("Source prob_mif_real", text)
+            self.assertIn("not a responder attribution", text)
             self.assertNotIn("scores and observed labels are fabricated", text)
         assets = json.loads((self.output / "patient_assets.json").read_text())["assets"]
         for asset in assets:

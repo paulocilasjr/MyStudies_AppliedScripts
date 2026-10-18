@@ -6,19 +6,23 @@ The updated handoff describes simulated inputs evaluated by trained XGBoost and 
 
 ## Current packet audit
 
-| Patient | Clinical CSV | mIF CSV | Fused CSV | Separate `prob_mif_real` |
-| --- | ---: | ---: | ---: | ---: |
-| S01 | 0.9708 | 0.8706 | 0.9956 | 0.9402 |
-| S02 | 0.0734 | 0.0933 | 0.0081 | 0.7570 |
-| S03 | 0.1142 | 0.7966 | 0.3355 | 0.9857 |
-| S04 | 0.9643 | 0.1376 | 0.8116 | 0.9909 |
-| S05 | 0.5824 | 0.8955 | 0.9228 | 0.9942 |
+| Patient | Clinical CSV | mIF CSV | Fused CSV |
+| --- | ---: | ---: | ---: |
+| S01 | 0.9708 | 0.8706 | 0.9956 |
+| S02 | 0.0734 | 0.1055 | 0.0093 |
+| S03 | 0.1142 | 0.7966 | 0.3355 |
+| S04 | 0.9643 | 0.1376 | 0.8116 |
+| S05 | 0.5824 | 0.8955 | 0.9228 |
 
-The CSV remains the authoritative set of displayed prediction scores; the undocumented alternate mIF scores are retained separately and flagged. At the demo threshold of 0.5, S03 is a fused false negative and S05 a fused false positive against the supplied synthetic labels. S04 now has a positive fused display class. These are demonstration outcomes, not clinical evaluation.
+The merged handoff v3 corrects S02's mIF and fused scores, updates its mIF feature contrasts and tile features, replaces all twenty figures, and removes all alternate `prob_mif_real` fields. The CSV remains authoritative for displayed prediction scores. The producer markdown still contains old S02 scores and says tile predictions are absent; the adapter reads the actual CSV/JSON files and records their hashes.
 
-All clinical JSON outputs equal the corresponding clinical CSV scores. S01/S02 SHAP reconstruction differs by 0.0001, compatible with four-decimal rounding; the importer records its tolerance and admits only numerically consistent structured SHAP as producer-declared responder-probability contributions. The clinical PNG/PDF files were not updated with these records. Hash-specific visual observations disclose the stale PNG content; PDFs are retained without a separate visual audit. Updated mIF plots remain descriptive attention contrasts, and their linkage to the conflicting CSV/sidecar mIF scores is unresolved.
+At the demo threshold of 0.5, S03 is a fused false negative and S05 a fused false positive against the supplied synthetic labels. S04 has a positive fused display class. These are demonstration outcomes, not clinical evaluation.
 
-Two new CSVs contain 347 tiles: `tile_features.csv` and `tile_predictions.csv`. Every supplied `tile_prob` equals the paired `attention` value. The original markdown still says tile predictions are absent. The adapter audits these files and preserves them under `ui/source_data/`; it does not expose attention weights as response probabilities in Junhao's heatmap.
+All clinical JSON outputs equal the corresponding clinical CSV scores. S01/S02 SHAP reconstruction differs by 0.0001, compatible with four-decimal rounding; the importer records its tolerance and admits only numerically consistent structured SHAP as producer-declared responder-probability contributions. Partial, hash-specific visual checks of the corrected clinical PNG labels found no discrepancies. PDFs are retained without a separate visual audit. Original v2 PNG observations remain available for historical packets; corrected v3 figures no longer carry those mismatch warnings. mIF plots remain descriptive attention contrasts, without independently verified model provenance.
+
+The two tile CSVs contain 347 tiles: `tile_features.csv` and `tile_predictions.csv`. Every supplied `tile_prob` equals the paired `attention` value. The adapter audits these files and preserves them under `ui/source_data/`; it does not expose attention weights as response probabilities in Junhao's heatmap.
+
+For real narrative generation through the hosted NVIDIA API, see [the NIM runner](nim.md). It uses this same canonical input, interpretation skill, and report contract.
 
 ## Run the complete local plumbing
 
@@ -72,7 +76,7 @@ For a custom log directory, use the paths printed at submission. A successful re
 
 ## Preserved plots and evidence warnings
 
-Clinical JSON is checked separately from the supplied waterfall images. Matching output and rounded additivity allow structured SHAP to enter the prompt as a source-declared attribution; this does not certify model provenance or clinical validity. Inconsistent structured SHAP is withheld. Original plots are intentionally retained for testing with visible discrepancy notes, and no source score is overwritten to make a plot agree.
+Clinical JSON is checked separately from the supplied waterfall images. Matching output and rounded additivity allow structured SHAP to enter the prompt as a source-declared attribution; this does not certify model provenance or clinical validity. Inconsistent structured SHAP is withheld. Original plots are intentionally retained for testing with visible discrepancy notes whenever a mismatch is detected, and no source score is overwritten to make a plot agree.
 
 mIF attention contrast compares high-attention and low-attention tiles. It is not a signed effect on responder probability. The global importance JSON also remains distinct from per-patient attribution. The placeholder `narratives.json` supplied in the source is replaced only in the new UI bundle, using the generated results with source/review disclosures.
 

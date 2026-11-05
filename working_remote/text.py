@@ -64,27 +64,65 @@ bash HPC_reviewer_experiments/submit/E06_federated_compass_recipe.sh --from-stag
 
 
 
-The path has a typo (HPC_reviwer_experiment). The correct one, after the usual sourcing:
-
-
-bash HPC_reviewer_experiments/submit/E02_variance_decomposition.sh
-bash HPC_reviewer_experiments/submit/E04_equivalence_tost.sh
-Tab completion avoids this: type HPC_rev and press Tab.
-
-Why only 5 run: the throttle allows 8, but the pending elements show reason Resources. The red partition has no free GPU slot that also has 8 free CPUs and 64 GB, so raising the throttle to 12 won't help by itself. Making each task smaller lets it fit into partly used GPU nodes; the pilot peaked at 2–4.5 GB of GPU memory, so 32 GB and 4 CPUs are plenty. Apply both changes to the elements still waiting:
-
-
-scontrol update JobId=21663680 ArrayTaskThrottle=12 MinMemoryNode=32G NumCPUs=4    # rand-owners, pending part
-scontrol update JobId=21663681 ArrayTaskThrottle=12 MinMemoryNode=32G NumCPUs=4    # rand-remaining
-sinfo -p red -O NodeList:20,Gres:25,GresUsed:35,CPUsState,FreeMem,StateCompact     # free GPUs right now
-If sinfo shows every GPU in use, you can't get more concurrency until GPUs free up.
-
-Check elements 0 and 5. They are no longer in the queue. They may have finished, since the random encoder can stop early, or they may have failed. This matters: rand-remaining waits for every owner to succeed, so a single failed owner blocks the rest of the chain.
-
-
-"$RX_PYTHON_TEST" HPC_reviewer_experiments/rx.py status E01
-sacct -j 21663680 -X --format=JobID%16,State,Elapsed,ExitCode,NodeList
-If both show COMPLETED, carry on. If either failed, paste the end of its log here before resubmitting:
-
-
-tail -50 "$RX_ROOT/E01/logs/rand-owners.21663680_5.log"
+(base) 4475918@hpctpa3pl0001:federated-learning-model(main *)$ bash HPC_reviwer_experiment/submit/E02_variance_decomposition.sh
+bash: HPC_reviwer_experiment/submit/E02_variance_decomposition.sh: No such file or directory
+(base) 4475918@hpctpa3pl0001:federated-learning-model(main *)$ bash HPC_reviewer_experiments/submit/E02_variance_decomposition.sh
+/submit/E04_equivalence_tost.sh/share/lab_goecks/paulo/federated-learning-model/sources/raw/HPC_reviewer_experiments/run_20261105/E02/plan.json
+analyze                      job          cpu_large      after=-  REML fits + parametric bootstrap on completed core fits
+/share/lab_goecks/paulo/federated-learning-model/sources/raw/HPC_reviewer_experiments/run_20261105/E02/submission_20261105T224028+0000.json
+(base) 4475918@hpctpa3pl0001:federated-learning-model(main *)$ bash HPC_reviewer_experiments/submit/E04_equivalence_tost.sh
+/share/lab_goecks/paulo/federated-learning-model/sources/raw/HPC_reviewer_experiments/run_20261105/E04/plan.json
+analyze                      job          cpu_large      after=-  exact intervals, reproduction check, TOST, power and scaling
+/share/lab_goecks/paulo/federated-learning-model/sources/raw/HPC_reviewer_experiments/run_20261105/E04/submission_20261105T224029+0000.json
+(base) 4475918@hpctpa3pl0001:federated-learning-model(main *)$ scontrol update JobId=21663680 ArrayTaskThrottle=12 MinMemoryNode=32G NumCPUs=4    # rand-owners, pending part
+s right nowscontrol: error: Invalid MinMemoryNode value: 32G
+(base) 4475918@hpctpa3pl0001:federated-learning-model(main *)$ scontrol update JobId=21663681 ArrayTaskThrottle=12 MinMemoryNode=32G NumCPUs=4    # rand-remaining
+scontrol: error: Invalid MinMemoryNode value: 32G
+(base) 4475918@hpctpa3pl0001:federated-learning-model(main *)$ sinfo -p red -O NodeList:20,Gres:25,GresUsed:35,CPUsState,FreeMem,StateCompact     # free GPUs right now
+NODELIST            GRES                     GRES_USED                          CPUS(A/I/O/T)       FREE_MEM            STATE
+hpctpa3pc[0001,0005,gpu:a30:1(S:0)           gpu:a30:1(IDX:0)                   508/452/0/960       132607-486084       mix-
+hpctpa3pc0070       gpu:a30:1(S:0)           gpu:a30:0(IDX:N/A)                 0/0/64/64           1011548             drain$
+hpctpa3pc0032       gpu:a30:1(S:0)           gpu:a30:0(IDX:N/A)                 0/0/64/64           6035                drain*
+hpctpa3pc[0004,0059]gpu:a30:1(S:0)           gpu:a30:0(IDX:N/A)                 0/0/128/128         1013122-1018096     drain
+hpctpa3pc0026       gpu:a30:2(S:0-1)         gpu:a30:0(IDX:N/A)                 0/64/0/64           185916              resv
+hpctpa3pc[0002-0003,gpu:a30:1(S:0)           gpu:a30:1(IDX:0)                   926/1250/0/2176     62575-717197        mix
+hpctpa3pc[0009-0010,gpu:a30:1(S:0)           gpu:a30:1(IDX:0)                   896/0/0/896         92100-501022        alloc
+hpctpa3pc0037       gpu:a30:1(S:0)           gpu:a30:0(IDX:N/A)                 64/0/0/64           94197               alloc
+(base) 4475918@hpctpa3pl0001:federated-learning-model(main *)$ qstat
+             JOBID PART         NAME     USER ST       TIME  TIME_LEFT NOD CPU TRES_PER_ MIN_ NODELIST(REASON)
+21663680_[12-47%8]  red rx_E01_rand-  4475918 PD       0:00 2-00:00:00   1   8 gres/gpu:  64G (Resources)
+          21663683  red rx_E01_analy  4475918 PD       0:00 2-00:00:00   1  16       N/A 128G (Dependency)
+          21663682  red rx_E01_rand-  4475918 PD       0:00 2-00:00:00   1  16       N/A 128G (Dependency)
+ 21663681_[0-95%8]  red rx_E01_rand-  4475918 PD       0:00 2-00:00:00   1   8 gres/gpu:  64G (Dependency)
+       21663680_11  red rx_E01_rand-  4475918  R       1:33 1-23:58:27   1   8 gres/gpu:  64G hpctpa3pc0006
+       21663680_10  red rx_E01_rand-  4475918  R       3:03 1-23:56:57   1   8 gres/gpu:  64G hpctpa3pc0066
+        21663680_9  red rx_E01_rand-  4475918  R       3:26 1-23:56:34   1   8 gres/gpu:  64G hpctpa3pc0013
+        21663680_8  red rx_E01_rand-  4475918  R       3:48 1-23:56:12   1   8 gres/gpu:  64G hpctpa3pc0002
+        21663680_7  red rx_E01_rand-  4475918  R       4:30 1-23:55:30   1   8 gres/gpu:  64G hpctpa3pc0056
+        21663680_6  red rx_E01_rand-  4475918  R       6:49 1-23:53:11   1   8 gres/gpu:  64G hpctpa3pc0054
+          21668090  red rx_E02_analy  4475918  R       0:44 1-23:59:16   1  16       N/A 128G hpctpa3pc0014
+          21668091  red rx_E04_analy  4475918  R       0:44 1-23:59:16   1  16       N/A 128G hpctpa3pc0014
+(base) 4475918@hpctpa3pl0001:federated-learning-model(main *)$ "$RX_PYTHON_TEST" HPC_reviewer_experiments/rx.py status E01
+,ExitCode,NodeListbuild                        complete 1/1  failed 0  running 0
+rand-plan                    complete 1/1  failed 0  running 0
+rand-owners                  complete 6/48  failed 0  running 6
+rand-remaining               complete 0/96  failed 0  running 0
+rand-finalize                complete 0/1  failed 0  running 0
+analyze                      complete 0/1  failed 0  running 0
+(base) 4475918@hpctpa3pl0001:federated-learning-model(main *)$ sacct -j 21663680 -X --format=JobID%16,State,Elapsed,ExitCode,NodeList
+           JobID      State    Elapsed ExitCode        NodeList
+---------------- ---------- ---------- -------- ---------------
+      21663680_0  COMPLETED   00:17:16      0:0   hpctpa3pc0066
+      21663680_1  COMPLETED   00:14:12      0:0   hpctpa3pc0066
+      21663680_2  COMPLETED   00:12:24      0:0   hpctpa3pc0013
+      21663680_3  COMPLETED   00:12:02      0:0   hpctpa3pc0002
+      21663680_4  COMPLETED   00:14:14      0:0   hpctpa3pc0006
+      21663680_5  COMPLETED   00:05:42      0:0   hpctpa3pc0054
+      21663680_6    RUNNING   00:07:17      0:0   hpctpa3pc0054
+      21663680_7    RUNNING   00:04:58      0:0   hpctpa3pc0056
+      21663680_8    RUNNING   00:04:16      0:0   hpctpa3pc0002
+      21663680_9    RUNNING   00:03:54      0:0   hpctpa3pc0013
+     21663680_10    RUNNING   00:03:31      0:0   hpctpa3pc0066
+     21663680_11    RUNNING   00:02:01      0:0   hpctpa3pc0006
+21663680_[12-47+    PENDING   00:00:00      0:0   None assigned
+(base) 4475918@hpctpa3pl0001:federated-learning-model(main *)$

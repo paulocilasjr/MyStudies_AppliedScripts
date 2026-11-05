@@ -64,17 +64,27 @@ bash HPC_reviewer_experiments/submit/E06_federated_compass_recipe.sh --from-stag
 
 
 
-(base) 4475918@hpctpa3pl0001:federated-learning-model(main *)$ qstat
-             JOBID PART         NAME     USER ST       TIME  TIME_LEFT NOD CPU TRES_PER_ MIN_ NODELIST(REASON)
- 21663680_[7-47%8]  red rx_E01_rand-  4475918 PD       0:00 2-00:00:00   1   8 gres/gpu:  64G (Resources)
-          21663683  red rx_E01_analy  4475918 PD       0:00 2-00:00:00   1  16       N/A 128G (Dependency)
-          21663682  red rx_E01_rand-  4475918 PD       0:00 2-00:00:00   1  16       N/A 128G (Dependency)
- 21663681_[0-95%8]  red rx_E01_rand-  4475918 PD       0:00 2-00:00:00   1   8 gres/gpu:  64G (Dependency)
-        21663680_6  red rx_E01_rand-  4475918  R       1:35 1-23:58:25   1   8 gres/gpu:  64G hpctpa3pc0054
-        21663680_4  red rx_E01_rand-  4475918  R      10:35 1-23:49:25   1   8 gres/gpu:  64G hpctpa3pc0006
-        21663680_2  red rx_E01_rand-  4475918  R      10:36 1-23:49:24   1   8 gres/gpu:  64G hpctpa3pc0013
-        21663680_3  red rx_E01_rand-  4475918  R      10:36 1-23:49:24   1   8 gres/gpu:  64G hpctpa3pc0002
-        21663680_1  red rx_E01_rand-  4475918  R      12:03 1-23:47:57   1   8 gres/gpu:  64G hpctpa3pc0066
-(base) 4475918@hpctpa3pl0001:federated-learning-model(main *)$ bash HPC_reviwer_experiment/submit/E02_variance_decomposition.sh
-bash: HPC_reviwer_experiment/submit/E02_variance_decomposition.sh: No such file or directory
-(base) 4475918@hpctpa3pl0001:federated-learning-model(main *)$
+The path has a typo (HPC_reviwer_experiment). The correct one, after the usual sourcing:
+
+
+bash HPC_reviewer_experiments/submit/E02_variance_decomposition.sh
+bash HPC_reviewer_experiments/submit/E04_equivalence_tost.sh
+Tab completion avoids this: type HPC_rev and press Tab.
+
+Why only 5 run: the throttle allows 8, but the pending elements show reason Resources. The red partition has no free GPU slot that also has 8 free CPUs and 64 GB, so raising the throttle to 12 won't help by itself. Making each task smaller lets it fit into partly used GPU nodes; the pilot peaked at 2–4.5 GB of GPU memory, so 32 GB and 4 CPUs are plenty. Apply both changes to the elements still waiting:
+
+
+scontrol update JobId=21663680 ArrayTaskThrottle=12 MinMemoryNode=32G NumCPUs=4    # rand-owners, pending part
+scontrol update JobId=21663681 ArrayTaskThrottle=12 MinMemoryNode=32G NumCPUs=4    # rand-remaining
+sinfo -p red -O NodeList:20,Gres:25,GresUsed:35,CPUsState,FreeMem,StateCompact     # free GPUs right now
+If sinfo shows every GPU in use, you can't get more concurrency until GPUs free up.
+
+Check elements 0 and 5. They are no longer in the queue. They may have finished, since the random encoder can stop early, or they may have failed. This matters: rand-remaining waits for every owner to succeed, so a single failed owner blocks the rest of the chain.
+
+
+"$RX_PYTHON_TEST" HPC_reviewer_experiments/rx.py status E01
+sacct -j 21663680 -X --format=JobID%16,State,Elapsed,ExitCode,NodeList
+If both show COMPLETED, carry on. If either failed, paste the end of its log here before resubmitting:
+
+
+tail -50 "$RX_ROOT/E01/logs/rand-owners.21663680_5.log"

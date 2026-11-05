@@ -1,24 +1,40 @@
-For oral selection, timing matters most. Reviewers judge the abstract you submit on November 10, so only analyses you can finish and verify in the next five days can change your odds. Everything else strengthens the talk if you’re selected, and the paper either way. I’ve grouped the experiments that way.
+set -a; source hpc/site.env; set +a        # brings in ITERATION_ROOT, CLINICAL_RESOURCES, etc. from the core run
 
-Before November 10: analyses of the models you already have
+# Interpreter paths (jobs call these directly, with no conda activation)
+conda activate compass-foundation-test; RX_PYTHON_TEST="$(command -v python)"; conda deactivate
+conda activate compass-federated;        RX_PYTHON_FED="$(command -v python)";  conda deactivate
 
-Untrained-encoder control. Freeze a randomly initialized COMPASS encoder and train the same heads under the same leave-one-cohort-out scheme. With your models only 0.03 above the no-skill baseline, the first question a reviewer will ask is whether pretraining contributes anything. This could weaken the story if the random encoder scores near 0.400, but you need to know before a reviewer asks, and a clear gap over it strengthens every other comparison.
-Variance decomposition. Fit a mixed-effects model of AUPRC with strategy as a fixed effect and pretraining seed, fine-tuning seed, and held-out cohort as random effects, and report each one’s share of the variance. This turns your seed finding from a descriptive comparison (range vs. mean difference, which the first reviewer flagged) into a quantitative claim. “Pretraining seed explains X% of downstream variance; strategy explains Y%” is the kind of result that changes how people benchmark FMs.
-Seed ensembling. Average the predictions or embeddings of the five pretraining seeds within each strategy and evaluate the ensemble. This uses only models you already have, and it turns the variability problem into a practical fix. If ensembling lifts federated AUPRC toward the top single seed (0.439) or the published COMPASS model (0.457), you gain a constructive headline without cherry-picking a lucky seed.
-Exact CIs and a formal equivalence test. Report exact bootstrap endpoints and run a two one-sided test (TOST) against a margin you justify independently of the results. Be prepared for an honest outcome: with 346 patients, your intervals may be too wide to establish equivalence at a meaningful margin. Saying that plainly, and quantifying how many patients would be needed, reads as rigor rather than weakness.
-Per-cohort results and AUROC. Show AUPRC lift over each cohort’s own responder rate, plus AUROC. Reviewers outside ML will understand an AUROC more easily, and per-cohort results show whether the small mean gain is spread evenly or concentrated in a few cohorts or cancer types.
+# Slurm resources: copy the example and reuse your tested partition/account/QoS
+mkdir -p sources/raw/HPC_reviewer_experiments
+python3 - "$CLINICAL_RESOURCES" <<'PY'
+import json, sys
+resources = json.load(open("HPC_reviewer_experiments/config/resources.example.json"))
+resources["site"].update(json.load(open(sys.argv[1])).get("site", {}))
+json.dump(resources, open("sources/raw/HPC_reviewer_experiments/resources.reviewer.json", "w"), indent=2)
+print(resources["site"])
+PY
 
-Before the meeting: new pretraining runs that answer the reviewers’ open questions
+# Append the reviewer variables (absolute paths are written now)
+cat >> hpc/site.env <<EOF
 
-Federated reproduction of the published COMPASS recipe. Pretrain with COMPASS’s own recipe on all 10,184 TCGA tumors, split across clients, and compare against the centralized checkpoint. All your from-scratch models trail the published one, so right now you’ve shown that federated pretraining matches a weaker baseline. Showing that federated training recovers state-of-the-art performance is the single result most likely to make this work field-moving.
-Separating normal tissue from tumor exposure. Add a TCGA-only run with tumor exposures matched to the pooled model, and an exposure-budget sweep for each strategy. This resolves the confound the first reviewer identified and answers a question the field cares about: does adding normal tissue help a cancer FM once tumor exposure is held constant?
-Realistic client partitions. Split TCGA by tissue source site, which mimics real contributing institutions, and scale from 2 to 5 to 10 or more clients, comparing random splits against heterogeneous ones. Two clients split by tissue type is an extreme, artificial setup. Showing that results hold as client count and heterogeneity grow addresses the “it’s only a simulation” critique directly.
-Federated algorithms built for heterogeneous data. Compare FedAvg with FedProx, SCAFFOLD, and FedAdam, and report communication rounds, bytes transferred, and wall-clock time. Your higher federated validation loss may reflect client drift, and these methods are designed to reduce it. Communication costs also matter to anyone deciding whether to deploy this.
-A better checkpoint-selection metric than pretraining loss. Across all 15 pretrained models, correlate downstream AUPRC with pretraining loss and with cheap probes such as k-nearest-neighbor tissue classification or a linear probe for cancer type. Your finding that loss doesn’t track downstream performance is a real problem for federated learning, where validation data are scattered across sites. A practical proxy metric would be a contribution in its own right.
-Biological agreement between federated and centralized models. Compare learned representations (for example, with centered kernel alignment) and the concepts most predictive of response, using the SHAP-based analysis of tumor immune microenvironment concepts planned in the Research Strategy. Showing that federated and centralized models rely on the same immune biology addresses the weakest score in the second review, clinical and biological impact.
-
-Longer term: what moves this from simulation to the real world
-
-Real cross-platform deployment. Run the same comparison across usegalaxy.org (TCGA) and the AnVIL (GTEx), as already planned in Aim 3.1 of the supplement, including the federated vs. centralized time-cost benchmark. This removes the simulation caveat and ties the abstract to infrastructure NCI is funding, which strengthens it for both AACR and the grant.
-A privacy-utility curve. Run membership-inference and gradient-inversion attacks on the shared updates, then add differential privacy at several privacy budgets and plot AUPRC against epsilon. Your abstract promises formal privacy assessment, and a curve showing how much accuracy a given level of privacy costs is exactly what institutions need before joining a federation.
-Larger and broader validation. Add ICB cohorts toward the 565 patients described in the proposal, and test at least one other downstream task, such as survival or subtype classification. More patients narrow the confidence intervals that currently limit your equivalence claims. A second task shows the federated result is a property of pretraining, not of one benchmark.
+# ---- HPC_reviewer_experiments ----
+RX_ROOT=$(pwd)/sources/raw/HPC_reviewer_experiments/run_$(date -u +%Y%m%d)
+RX_PYTHON_TEST=${RX_PYTHON_TEST}
+RX_PYTHON_FED=${RX_PYTHON_FED}
+RX_RESOURCES=$(pwd)/sources/raw/HPC_reviewer_experiments/resources.reviewer.json
+CORE_ITERATION_ROOT=${ITERATION_ROOT}
+NEW_MODELS=${ITERATION_ROOT}/sample_objective_launch/finalized/models.tsv
+CORE_LFT_PACKAGE=${ITERATION_ROOT}/new_nested_LFT/package_manifest.json
+CORE_PFT_PACKAGE=${ITERATION_ROOT}/new_nested_PFT/package_manifest.json
+PUBLISHED_REFERENCE=${ITERATION_ROOT}/published_references/published_matching_eight_cohorts.tsv
+CLINICAL_COST_REFERENCE=${ITERATION_ROOT}/new_nested_LFT_launch/finalized/execution_cost.tsv
+GPU_HOUR_CAP=120
+GTEX_METADATA=
+CLINICAL_DATASET_ALL16=
+IATLAS_FEATURES=
+SURVIVAL_LABELS=
+TCGA_SUBTYPES=
+TLS_CA_CERTIFICATE=
+TLS_SERVER_CERTIFICATE=
+TLS_SERVER_PRIVATE_KEY=
+EOF

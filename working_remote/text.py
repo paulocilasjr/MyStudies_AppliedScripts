@@ -1,52 +1,33 @@
-Here is the final abstract. It combines my earlier review with the reviewer comments you attached. It uses only the results you already have, with no new claims. The title, body and AI disclosure come to about 2,500 of the 2,600 allowed characters (spaces excluded), leaving roughly 100 characters for one optional insertion described below.
+Written for: AACR 2027 abstract reviewers and the committee that picks oral presentations (category BCS02, "Foundation and multimodal models").
 
-Federated tumor–normal pretraining of a transcriptomic foundation model achieves immunotherapy response prediction comparable to centralized training
+The full abstract is 2,584 characters without spaces (title, sections and AI sentence), under the 2,600 limit. Every number in it matches the tracked results tables.
 
-Purpose: Transcriptomic foundation models (FMs) such as COMPASS can predict response to immune checkpoint inhibitors (ICIs), but scaling them beyond public data would require pooling patient transcriptomes that cancer centers often cannot share. Federated learning keeps data at each site and exchanges only model updates. We asked whether federated pretraining preserves an FM’s transfer to ICI response prediction in a strongly heterogeneous two-site simulation.
+Federated pretraining of a transcriptomic foundation model across tumor and normal sites predicts immunotherapy response comparably to centralized training
 
-Methods: We pretrained the COMPASS concept-bottleneck transformer from random initialization by self-supervised federated learning across two simulated clients: one held TCGA tumors (10,184; 33 cancer types) and the other GTEx normal tissues (19,616), so the sites differed in both data source and tissue state. Both were harmonized to the same 15,672-gene log2(TPM+1) input. Comparators were centralized FMs pretrained on the pooled data and on TCGA alone (five seeds per strategy, matched training budgets). Each frozen encoder was fine-tuned (head-only or projector+head) by nested leave-one-cohort-out validation across eight public ICI cohorts (346 patients, 113 responders; seven adaptation cohorts per fold vs. 15 in the original COMPASS study). The released COMPASS checkpoint, fine-tuned identically, served as reference.
+Purpose: Transcriptomic foundation models (FMs) such as COMPASS predict response to immune checkpoint inhibitors (ICIs), but scaling them requires patient transcriptomes that cancer centers often cannot share. Federated learning exchanges only model updates. We asked whether federated pretraining preserves ICI response prediction under strong between-site heterogeneity, and how pretraining strategies should be compared.
 
-Results: Federated and centralized pooled FMs reached nearly identical mean held-out AUPRC (head-only/projector+head: 0.400/0.402 vs. 0.400/0.401; paired difference −0.0005/+0.001; bootstrap 95% CIs within ±0.046). Adding normal tissue did not improve transfer: the TCGA-only FM reached 0.412/0.412, and the federated FM trailed it by 0.013/0.010 (CIs within ±0.067). The released COMPASS checkpoint reached 0.457/0.443. Two findings bear on how FMs should be compared. Federated pretraining ended with 1.7-fold higher validation triplet loss than pooled training (0.400 ± 0.058 vs. 0.231 ± 0.042), yet ICI performance was not lower. Pretraining seed moved federated head-only AUPRC from 0.340 to 0.439, a spread more than seven times larger than any difference between our pretraining strategies.
+Methods: We pretrained the COMPASS concept-bottleneck transformer from scratch with its self-supervised triplet objective by FedAvg across two simulated sites: TCGA tumors (10,184; 33 cancer types) and GTEx normal tissues (19,616), which differ in both data source and tissue state. Both used the same 15,672-gene log2(TPM+1) input. Comparators were centralized FMs pretrained on pooled data and on TCGA alone (five seeds per strategy, identical sample budgets). Each frozen encoder was fine-tuned (head-only or projector+head; three fine-tuning seeds) by nested leave-one-cohort-out validation across eight public ICI cohorts (346 patients, 113 responders; seven adaptation cohorts per fold vs. 15 in the COMPASS study). The released COMPASS checkpoint, fine-tuned identically, served as reference. CIs used a cohort-and-patient bootstrap.
 
-Conclusions: Federated pretraining across two sites whose data differed in both source and tissue state yielded an FM with ICI response prediction comparable to centralized training, without moving any transcriptome between sites. Pretraining loss and single-seed comparisons were unreliable guides to clinical transfer, so FM benchmarks for oncology endpoints should use multi-seed downstream evaluation. These results motivate real multi-institution deployment with formal privacy evaluation, which would let cancer centers jointly train FMs on data they cannot share.
+Results: Federated and pooled FMs reached nearly identical mean held-out AUPRC (head-only/projector+head: 0.400/0.402 vs. 0.400/0.401; paired difference −0.0005/+0.001, 95% CIs within ±0.046; no-skill baseline, 0.368). Adding normal tissue did not improve transfer: the TCGA-only FM reached 0.412/0.412, and the federated FM trailed it by 0.013/0.010 (CIs within ±0.067). All from-scratch FMs, centralized or federated, trailed the released checkpoint (0.457/0.443). Two findings bear on FM evaluation. First, federated pretraining ended with 1.7-fold higher context-averaged validation triplet loss than pooled training (0.400 ± 0.058 vs. 0.231 ± 0.042), yet ICI performance was not lower. Second, pretraining seed alone moved federated head-only AUPRC from 0.340 (below no-skill) to 0.439 (near the released checkpoint), a spread nearly eight times the largest between-strategy difference.
 
-Generative AI (Claude, Anthropic) was used to edit the language of this abstract.
+Conclusions: Federated pretraining across sites differing in source and tissue state was comparable to centralized training for ICI response prediction, without pooling transcriptomes. Pretraining loss and single-seed comparisons misled: one seed could place a model below chance or near the reference. Oncology FM benchmarks should report multi-seed downstream performance against a no-skill baseline. This supports multi-institution deployment with formal privacy evaluation, letting cancer centers jointly train FMs on data they cannot share.
 
-Why it is built this way
+Generative AI (Claude, Anthropic) assisted with drafting, editing and analysis code; the authors verified all results.
 
-The abstract now makes two arguments instead of one. The first is the feasibility result: federation matches centralized training. On its own, that reads as an engineering check, which both reviews flagged as the main obstacle to getting a talk.
+What changed and why
 
-The second is a methodological lesson that matters to anyone building or benchmarking oncology foundation models. Pretraining loss misled, and seed variance swamped every between-strategy difference. That second finding is what widens the audience. It also fits the program, which includes a forum on building the AI evaluation infrastructure that will drive innovative treatments. 
-aacr
+The seed finding is now the headline result. The worst federated pretraining seed (0.340) scored below the no-skill baseline (0.368), and the best (0.439) came within 0.018 of released COMPASS. That gives the committee one concrete, surprising observation instead of an abstract claim about variance.
+The no-skill baseline is 0.368, not the 0.336 responder rate. It is calculated with the same AUPRC formula the results use. Reporting it openly is better than having a reviewer find it.
+The gap to released COMPASS no longer blames anything. The CIs for that gap include zero, and the TCGA-only centralized model trails too. So the abstract states the gap without implying federation caused it.
+Fixed from the comments:
+The 1.7-fold loss ratio is specified as context-averaged; averaged per sample, the ratio is only 1.44.
+"Matched budgets" now reads "identical sample budgets"; all 15 runs used 2,764,800 samples.
+FedAvg and three fine-tuning seeds are named.
+The bootstrap method is stated.
+The AI sentence covers how it was actually used.
+Before you submit
 
-The tumor/normal client split is now framed as a stress test, stated factually. The reviewer’s main objection, that client identity, data source and tissue state are perfectly aligned, becomes the reason the result is interesting.
-
-I made three deliberate changes from the attached reviewer’s version:
-
-Title verb. I used “comparable” rather than “approaches.” The point estimates are essentially identical, so “approaches” undersells the result. “Comparable” still avoids an equivalence claim.
-Abbreviations. I dropped LFT/PFT entirely in favor of plain “head-only/projector+head.” This avoids defining abbreviations for a broad audience. It also avoids the reviewer’s expansion “linear-probe fine-tuning,” which may not match what COMPASS calls these modes.
-Released COMPASS result. I kept it visible, as both reviews asked, but stated it without editorializing.
-
-Category: I confirmed the reviewer’s recommendation in the official call. BCS02 (Artificial Intelligence, Machine Learning, and Data Science) lists “Foundation and multimodal models” and “Clinical AI for cancer prediction and precision oncology” as subclassifications. Choose “Foundation and multimodal models.” 
-aacr
-
-Before you submit (deadline: Nov 10, 11:59 p.m. ET)
-
-Optional insertion. If you can compute it, the most valuable addition is the mean cohort-specific no-skill AUPRC. Insert it after the first Results parenthesis as “(no-skill baseline, 0.XX).” Without it, readers can’t tell how far 0.40 sits above chance. It fits in the remaining space. If you would rather name the federated algorithm (e.g., “FedAvg”), that also fits, but not both alongside exact CI endpoints.
-
-Facts to verify:
-
-GTEx count. The reviewer noticed that 19,616 differs from the 17,382 samples in your earlier project plan. Confirm the final number.
-Seed range. Confirm that 0.340–0.439 reflects pretraining seeds rather than fine-tuning randomness.
-“Matched training budgets.” Confirm this describes what was actually matched.
-Differences of 0.013/0.010. Confirm these are your computed paired differences (simple subtraction of the means gives 0.012/0.010).
-AI disclosure. Adjust the sentence to reflect how AI was actually used in the final text.
-
-Coauthor accounts. This year all coauthors need a verified myAACR account before they can be added to a submission. Ask all five coauthors to do this today rather than on deadline night. 
-aacr
-
-What the wording can’t change
-
-The abstract now presents everything the data support, and that maximizes its standing. Selection for a talk will still depend on the content. The two things that would move it most remain a real Moffitt–OHSU federated run and evidence that normal tissue changes what the model learns. Neither is likely by November 10.
-
-If either comes through by early January, it would be the basis for a stronger manuscript or talk. Have the per-cohort AUPRCs and paired seed differences ready either way. They are the first slides a minisymposium audience will ask for.
+Confirm the two dataset counts on the HPC. 10,184 is the COMPASS paper's TCGA count, and 19,616 is the full GTEx source matrix; neither is confirmed as the number used in training. Run this and replace them:
+Numbers of similar length keep you under the limit.
+Confirm the AI sentence with your coauthors. I wrote it from this session; adjust it if the analysis code was produced another way.
+If the portal counts more strictly (for example, section labels), cut "Two findings bear on FM evaluation." That saves 29 characters.

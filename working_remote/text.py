@@ -64,40 +64,6 @@ bash HPC_reviewer_experiments/submit/E06_federated_compass_recipe.sh --from-stag
 
 
 
-(base) 4475918@hpctpa3pl0001:federated-learning-model(main *)$ bash HPC_reviewer_experiments/submit/E01_untrained_encoder.sh --dry-run
-ments/submit/E01_untrained_encoder.sh/share/lab_goecks/paulo/federated-learning-model/sources/raw/HPC_reviewer_experiments/run_20261105/E01/plan.json
-build                        job          cpu            after=-  construct 5 untrained encoders + verify step-zero tensors
-rand-plan                    job          cpu            after=build  freeze + preflight clinical panel rand
-rand-owners                  array[48]    clinical_gpu   after=rand-plan  inner selection owners (fine-tuning seed 24)
-rand-remaining               array[96]    clinical_gpu   after=rand-owners  remaining fine-tuning seeds (cached selection)
-rand-finalize                job          cpu_large      after=rand-remaining  stock verification + paired bootstrap
-analyze                      job          cpu_large      after=rand-finalize  RAND vs A_U/B_U/C_U/R with paired bootstrap
-sbatch --parsable --job-name=rx_E01_build --cpus-per-task=4 --mem=32G --time=08:00:00 --output=/share/lab_goecks/paulo/federated-learning-model/sources/raw/HPC_reviewer_experiments/run_20261105/E01/logs/build.%j.log --export=ALL,RX_PYTHON=/home/4475918/.conda/envs/compass-foundation-test/bin/python,RX_REPO=/share/lab_goecks/paulo/federated-learning-model,RX_ROOT=/share/lab_goecks/paulo/federated-learning-model/sources/raw/HPC_reviewer_experiments/run_20261105 --partition=red --account=paulocilas.moraislyra --qos=medium /share/lab_goecks/paulo/federated-learning-model/HPC_reviewer_experiments/slurm/rx_job.sbatch E01 build
-sbatch --parsable --job-name=rx_E01_rand-plan --cpus-per-task=4 --mem=32G --time=08:00:00 --output=/share/lab_goecks/paulo/federated-learning-model/sources/raw/HPC_reviewer_experiments/run_20261105/E01/logs/rand-plan.%j.log --export=ALL,RX_PYTHON=/home/4475918/.conda/envs/compass-foundation-test/bin/python,RX_REPO=/share/lab_goecks/paulo/federated-learning-model,RX_ROOT=/share/lab_goecks/paulo/federated-learning-model/sources/raw/HPC_reviewer_experiments/run_20261105 --partition=red --account=paulocilas.moraislyra --qos=medium '--dependency=afterok:<build>' /share/lab_goecks/paulo/federated-learning-model/HPC_reviewer_experiments/slurm/rx_job.sbatch E01 rand-plan
-sbatch --parsable --job-name=rx_E01_rand-owners --cpus-per-task=8 --mem=64G --time=2-00:00:00 --output=/share/lab_goecks/paulo/federated-learning-model/sources/raw/HPC_reviewer_experiments/run_20261105/E01/logs/rand-owners.%A_%a.log --export=ALL,RX_PYTHON=/home/4475918/.conda/envs/compass-foundation-test/bin/python,RX_REPO=/share/lab_goecks/paulo/federated-learning-model,RX_ROOT=/share/lab_goecks/paulo/federated-learning-model/sources/raw/HPC_reviewer_experiments/run_20261105 --gres=gpu:1 --partition=red --account=paulocilas.moraislyra --qos=medium --array=0-47%8 '--dependency=afterok:<rand-plan>' /share/lab_goecks/paulo/federated-learning-model/HPC_reviewer_experiments/slurm/rx_array.sbatch E01 rand-owners
-sbatch --parsable --job-name=rx_E01_rand-remaining --cpus-per-task=8 --mem=64G --time=2-00:00:00 --output=/share/lab_goecks/paulo/federated-learning-model/sources/raw/HPC_reviewer_experiments/run_20261105/E01/logs/rand-remaining.%A_%a.log --export=ALL,RX_PYTHON=/home/4475918/.conda/envs/compass-foundation-test/bin/python,RX_REPO=/share/lab_goecks/paulo/federated-learning-model,RX_ROOT=/share/lab_goecks/paulo/federated-learning-model/sources/raw/HPC_reviewer_experiments/run_20261105 --gres=gpu:1 --partition=red --account=paulocilas.moraislyra --qos=medium --array=0-95%8 '--dependency=afterok:<rand-owners>' /share/lab_goecks/paulo/federated-learning-model/HPC_reviewer_experiments/slurm/rx_array.sbatch E01 rand-remaining
-sbatch --parsable --job-name=rx_E01_rand-finalize --cpus-per-task=16 --mem=128G --time=2-00:00:00 --output=/share/lab_goecks/paulo/federated-learning-model/sources/raw/HPC_reviewer_experiments/run_20261105/E01/logs/rand-finalize.%j.log --export=ALL,RX_PYTHON=/home/4475918/.conda/envs/compass-foundation-test/bin/python,RX_REPO=/share/lab_goecks/paulo/federated-learning-model,RX_ROOT=/share/lab_goecks/paulo/federated-learning-model/sources/raw/HPC_reviewer_experiments/run_20261105 --partition=red --account=paulocilas.moraislyra --qos=medium '--dependency=afterok:<rand-remaining>' /share/lab_goecks/paulo/federated-learning-model/HPC_reviewer_experiments/slurm/rx_job.sbatch E01 rand-finalize
-sbatch --parsable --job-name=rx_E01_analyze --cpus-per-task=16 --mem=128G --time=2-00:00:00 --output=/share/lab_goecks/paulo/federated-learning-model/sources/raw/HPC_reviewer_experiments/run_20261105/E01/logs/analyze.%j.log --export=ALL,RX_PYTHON=/home/4475918/.conda/envs/compass-foundation-test/bin/python,RX_REPO=/share/lab_goecks/paulo/federated-learning-model,RX_ROOT=/share/lab_goecks/paulo/federated-learning-model/sources/raw/HPC_reviewer_experiments/run_20261105 --partition=red --account=paulocilas.moraislyra --qos=medium '--dependency=afterok:<rand-finalize>' /share/lab_goecks/paulo/federated-learning-model/HPC_reviewer_experiments/slurm/rx_job.sbatch E01 analyze
-(base) 4475918@hpctpa3pl0001:federated-learning-model(main *)$ bash HPC_reviewer_experiments/submit/E01_untrained_encoder.sh
-build                        job          cpu            after=-  construct 5 untrained encoders + verify step-zero tensors
-rand-plan                    job          cpu            after=build  freeze + preflight clinical panel rand
-rand-owners                  array[48]    clinical_gpu   after=rand-plan  inner selection owners (fine-tuning seed 24)
-rand-remaining               array[96]    clinical_gpu   after=rand-owners  remaining fine-tuning seeds (cached selection)
-rand-finalize                job          cpu_large      after=rand-remaining  stock verification + paired bootstrap
-analyze                      job          cpu_large      after=rand-finalize  RAND vs A_U/B_U/C_U/R with paired bootstrap
-/share/lab_goecks/paulo/federated-learning-model/sources/raw/HPC_reviewer_experiments/run_20261105/E01/submission_20261105T220311+0000.json
-(base) 4475918@hpctpa3pl0001:federated-learning-model(main *)$ "$RX_PYTHON_TEST" HPC_reviewer_experiments/rx.py status E01
-build                        complete 1/1  failed 0  running 0
-rand-plan                    complete 0/1  failed 0  running 1
-rand-owners                  complete 0/48  failed 0  running 0
-rand-remaining               complete 0/96  failed 0  running 0
-rand-finalize                complete 0/1  failed 0  running 0
-analyze                      complete 0/1  failed 0  running 0
-(base) 4475918@hpctpa3pl0001:federated-learning-model(main *)$ qstat
-             JOBID PART         NAME     USER ST       TIME  TIME_LEFT NOD CPU TRES_PER_ MIN_ NODELIST(REASON)
-          21663683  red rx_E01_analy  4475918 PD       0:00 2-00:00:00   1  16       N/A 128G (Dependency)
-          21663682  red rx_E01_rand-  4475918 PD       0:00 2-00:00:00   1  16       N/A 128G (Dependency)
- 21663681_[0-95%8]  red rx_E01_rand-  4475918 PD       0:00 2-00:00:00   1   8 gres/gpu:  64G (Dependency)
- 21663680_[0-47%8]  red rx_E01_rand-  4475918 PD       0:00 2-00:00:00   1   8 gres/gpu:  64G (Dependency)
-          21663679  red rx_E01_rand-  4475918  R       0:17    7:59:43   1   4       N/A  32G hpctpa3pc0003
-(base) 4475918@hpctpa3pl0001:federated-learning-model(main *)$
+column -t -s $'\t' "$RX_ROOT/E01/results/random_encoder_build.tsv"   # matches_A_U_step_zero should be True for all 5
+# once rand-plan finishes:
+"$RX_PYTHON_TEST" -c "import json; r=json.load(open('$RX_ROOT/E01/clinical/rand/package/rx_preflight.json')); print(r['status'], r['cost_gate'].get('estimated_gpu_hours'), [g['gate'] for g in r['stock_preflight']['unresolved_gates']])"

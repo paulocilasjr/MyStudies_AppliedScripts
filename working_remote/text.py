@@ -64,6 +64,21 @@ bash HPC_reviewer_experiments/submit/E06_federated_compass_recipe.sh --from-stag
 
 
 
-column -t -s $'\t' "$RX_ROOT/E01/results/random_encoder_build.tsv"   # matches_A_U_step_zero should be True for all 5
-# once rand-plan finishes:
-"$RX_PYTHON_TEST" -c "import json; r=json.load(open('$RX_ROOT/E01/clinical/rand/package/rx_preflight.json')); print(r['status'], r['cost_gate'].get('estimated_gpu_hours'), [g['gate'] for g in r['stock_preflight']['unresolved_gates']])"
+(base) 4475918@hpctpa3pl0001:federated-learning-model(main *)$ column -t -s $'\t' "$RX_ROOT/E01/results/random_encoder_build.tsv"   # matches_A_U_step_zero should be True for all 5
+open('$RX_ROOT/E01/clinical/rand/package/rx_preflight.json')); print(r['status'], r['cost_gate'].get('estimated_gpu_hours'), [g['gate'] for g in r['stock_preflight']['unresolved_gates']])"seed  step_zero_receipt_checked  matches_A_U_step_zero
+17    True                       True
+24    True                       True
+42    True                       True
+64    True                       True
+91    True                       True
+(base) 4475918@hpctpa3pl0001:federated-learning-model(main *)$ # once rand-plan finishes:
+(base) 4475918@hpctpa3pl0001:federated-learning-model(main *)$ "$RX_PYTHON_TEST" -c "import json; r=json.load(open('$RX_ROOT/E01/clinical/rand/package/rx_preflight.json')); print(r['status'], r['cost_gate'].get('estimated_gpu_hours'), [g['gate'] for g in r['stock_preflight']['unresolved_gates']])"
+pass 10.379510421646021 ['repeated_person_linkage', 'measured_pilot_cost']
+(base) 4475918@hpctpa3pl0001:federated-learning-model(main *)$ qstat
+             JOBID PART         NAME     USER ST       TIME  TIME_LEFT NOD CPU TRES_PER_ MIN_ NODELIST(REASON)
+ 21663680_[1-47%8]  red rx_E01_rand-  4475918 PD       0:00 2-00:00:00   1   8 gres/gpu:  64G (Resources)
+          21663683  red rx_E01_analy  4475918 PD       0:00 2-00:00:00   1  16       N/A 128G (Dependency)
+          21663682  red rx_E01_rand-  4475918 PD       0:00 2-00:00:00   1  16       N/A 128G (Dependency)
+ 21663681_[0-95%8]  red rx_E01_rand-  4475918 PD       0:00 2-00:00:00   1   8 gres/gpu:  64G (Dependency)
+        21663680_0  red rx_E01_rand-  4475918  R       3:13 1-23:56:47   1   8 gres/gpu:  64G hpctpa3pc0066
+(base) 4475918@hpctpa3pl0001:federated-learning-model(main *)$

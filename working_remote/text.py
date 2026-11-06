@@ -1,14 +1,20 @@
-Federated pretraining of a tumor–normal transcriptomic foundation model is statistically equivalent to centralized pretraining for immunotherapy response prediction
+cd /share/lab_goecks/paulo/federated-learning-model
+set -a; source hpc/site.env; set +a
 
-Paulo Cilas Morais Lyra Jr., Luke Sargent, Alyssa F. Pybus, Junhao Qiu, Isis Narvaez-Bandera, Jeremy Goecks
-H. Lee Moffitt Cancer Center & Research Institute, Tampa, FL; Oregon Health & Science University, Portland, OR
+for e in E01 E02 E03 E04 E05 E06 E07 E08 E08B E10 E11 E12; do echo "== $e"; "$RX_PYTHON_TEST" HPC_reviewer_experiments/rx.py status $e; done
 
-Purpose: Transcriptomic foundation models (FMs) such as COMPASS can predict response to immune checkpoint blockade (ICB), but centralized pretraining requires pooling patient transcriptomes that institutions often cannot share. Federated learning trains at each site and shares only model updates. We tested whether federated pretraining preserves ICB prediction, learned representations and response-relevant biology, and used controls to find what limits performance.
+squeue -u "$USER" -o "%.18i %.24j %.9T %.11M %.4D %R"
 
-Methods: We pretrained the COMPASS architecture from scratch on 15,672 genes without labels, teaching it to recognize each transcriptome after random gene masking or noise among other samples of the same tissue (contrastive learning). We used three strategies, five seeds each and equal sample exposures: federated, with 8,210 TCGA tumors and 19,616 GTEx normal tissues at two simulated sites (FedAvg); pooled centrally; and TCGA-only. We trained prediction heads (three seeds) on frozen encoders, holding out each of eight public ICB cohorts in turn (346 patients, 113 responders). Published COMPASS and an untrained, randomly initialized encoder served as controls. We report AUPRC (no-skill 0.368, the expected AUPRC of a random ranking) and AUROC with CIs from resampling cohorts and patients; equivalence by two one-sided tests (TOST), with a margin derived only from published results (±0.078, half of COMPASS's gain over no-skill); a mixed-model variance decomposition; representation similarity (CKA); and Shapley attributions over the model's immune and pathway concepts.
 
-Results: Federated and pooled pretraining were equivalent (AUPRC 0.400 vs 0.400; difference −0.0005, 90% CI −0.036 to 0.033), even at half the margin (±0.039). Federated encoders were nearly as similar to their same-seed pooled counterparts as two pooled seeds were to each other (CKA 0.71 vs 0.74) and ranked response-driving concepts as consistently (Spearman 0.57 vs 0.53), despite higher validation loss (0.400 vs 0.231). TCGA-only pretraining, with 3.4-fold more tumor exposures, scored 0.412. However, the untrained encoder reached 0.395, and no strategy exceeded it by more than 0.018 (all CIs included zero). Published COMPASS exceeded it (+0.063; patient-level 95% CI 0.009 to 0.110; AUROC 0.58 vs 0.53–0.56), yet nearly all of its advantage over federated pretraining came from 2 of 8 cohorts (gastric, glioblastoma). The held-out cohort explained 74% of AUPRC variance, pretraining seed 1.9% and strategy 0.1%; federated AUPRC ranged from 0.340 to 0.439 across seeds. Projector-plus-head fine-tuning also met the equivalence margin.
+ls -t "$RX_ROOT"/E0{6,7,8}*/logs/train.*.log "$RX_ROOT"/E12/logs/train.*.log 2>/dev/null | head -8 | while read f; do echo "== $f"; tail -n 2 "$f"; done
 
-Conclusions: Federated pretraining matched centralized pretraining in prediction, representations and response-relevant biology without exchanging transcriptomes. Untrained-encoder and multi-seed controls showed that the pretraining recipe, not federation, limits clinical value, and FM benchmarks should report both controls. Cancer centers could build shared FMs while keeping patient data local.
+ls -t "$RX_ROOT"/E11/logs/*.log | head -4 | while read f; do echo "== $f"; tail -n 3 "$f"; done
 
-AI disclosure: Claude (Anthropic) was used to edit the text; the authors verified all content.
+
+sacct -X -u "$USER" -S now-2days -s F,TO,OOM,NF -o JobID%20,JobName%24,State,Elapsed,ExitCode
+
+
+cat "$RX_ROOT/E06/results/report.md"
+
+squeue -u "$USER" -h -n rx_E07_train,rx_E08_train,rx_E08B_train,rx_E12_train -o %A | sort -u | xargs -r scontrol release
+

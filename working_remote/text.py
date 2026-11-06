@@ -64,57 +64,15 @@ bash HPC_reviewer_experiments/submit/E06_federated_compass_recipe.sh --from-stag
 
 
 
-(base) 4475918@hpctpa3pl0002:federated-learning-model(main *)$ sacct -j 21663680 -X --format=JobID%16,State,Elapsed,ExitCode,NodeList
-           JobID      State    Elapsed ExitCode        NodeList
----------------- ---------- ---------- -------- ---------------
-      21663680_0  COMPLETED   00:17:16      0:0   hpctpa3pc0066
-      21663680_1  COMPLETED   00:14:12      0:0   hpctpa3pc0066
-      21663680_2  COMPLETED   00:12:24      0:0   hpctpa3pc0013
-      21663680_3  COMPLETED   00:12:02      0:0   hpctpa3pc0002
-      21663680_4  COMPLETED   00:14:14      0:0   hpctpa3pc0006
-      21663680_5  COMPLETED   00:05:42      0:0   hpctpa3pc0054
-      21663680_6  COMPLETED   00:16:00      0:0   hpctpa3pc0054
-      21663680_7  COMPLETED   00:16:56      0:0   hpctpa3pc0056
-      21663680_8  COMPLETED   00:10:56      0:0   hpctpa3pc0002
-      21663680_9  COMPLETED   00:06:15      0:0   hpctpa3pc0013
-     21663680_10  COMPLETED   00:13:15      0:0   hpctpa3pc0066
-     21663680_11  COMPLETED   00:14:39      0:0   hpctpa3pc0006
-     21663680_12  COMPLETED   00:09:13      0:0   hpctpa3pc0013
-     21663680_13  COMPLETED   00:08:21      0:0   hpctpa3pc0002
-     21663680_14  COMPLETED   00:11:49      0:0   hpctpa3pc0054
-     21663680_15  COMPLETED   00:11:14      0:0   hpctpa3pc0066
-     21663680_16  COMPLETED   00:11:23      0:0   hpctpa3pc0068
-     21663680_17  COMPLETED   00:07:14      0:0   hpctpa3pc0013
-     21663680_18  COMPLETED   00:13:26      0:0   hpctpa3pc0056
-     21663680_19  COMPLETED   00:08:36      0:0   hpctpa3pc0006
-     21663680_20  COMPLETED   00:08:31      0:0   hpctpa3pc0002
-     21663680_21  COMPLETED   00:05:02      0:0   hpctpa3pc0013
-     21663680_22  COMPLETED   00:12:30      0:0   hpctpa3pc0054
-     21663680_23  COMPLETED   00:13:46      0:0   hpctpa3pc0066
-     21663680_24  COMPLETED   00:08:18      0:0   hpctpa3pc0006
-     21663680_25  COMPLETED   00:06:05      0:0   hpctpa3pc0066
-     21663680_26  COMPLETED   00:09:08      0:0   hpctpa3pc0066
-     21663680_27  COMPLETED   00:09:44      0:0   hpctpa3pc0058
-     21663680_28  COMPLETED   00:07:20      0:0   hpctpa3pc0017
-     21663680_29  COMPLETED   00:06:48      0:0   hpctpa3pc0069
-     21663680_30  COMPLETED   00:10:04      0:0   hpctpa3pc0066
-     21663680_31  COMPLETED   00:10:56      0:0   hpctpa3pc0068
-     21663680_32  COMPLETED   00:13:21      0:0   hpctpa3pc0013
-     21663680_33  COMPLETED   00:11:17      0:0   hpctpa3pc0058
-     21663680_34  COMPLETED   00:09:57      0:0   hpctpa3pc0069
-     21663680_35  COMPLETED   00:09:00      0:0   hpctpa3pc0017
-     21663680_36  COMPLETED   00:12:25      0:0   hpctpa3pc0002
-     21663680_37  COMPLETED   00:07:41      0:0   hpctpa3pc0006
-     21663680_38  COMPLETED   00:10:52      0:0   hpctpa3pc0066
-     21663680_39  COMPLETED   00:14:18      0:0   hpctpa3pc0068
-     21663680_40  COMPLETED   00:17:41      0:0   hpctpa3pc0058
-     21663680_41  COMPLETED   00:14:06      0:0   hpctpa3pc0017
-     21663680_42  COMPLETED   00:15:10      0:0   hpctpa3pc0013
-     21663680_43  COMPLETED   00:11:35      0:0   hpctpa3pc0069
-     21663680_44  COMPLETED   00:14:26      0:0   hpctpa3pc0006
-     21663680_45  COMPLETED   00:09:07      0:0   hpctpa3pc0002
-     21663680_46  COMPLETED   00:17:38      0:0   hpctpa3pc0066
-     21663680_47  COMPLETED   00:18:38      0:0   hpctpa3pc0068
-(base) 4475918@hpctpa3pl0002:federated-learning-model(main *)$ qstat
-             JOBID PART         NAME     USER ST       TIME  TIME_LEFT NOD CPU TRES_PER_ MIN_ NODELIST(REASON)
-(base) 4475918@hpctpa3pl0002:federated-learning-model(main *)$
+set -a; source hpc/site.env; set +a
+"$RX_PYTHON_TEST" HPC_reviewer_experiments/rx.py status E01
+sacct -j 21663681,21663682,21663683 -X --format=JobID%16,JobName%24,State,Elapsed,ExitCode | grep -v COMPLETED
+"$RX_PYTHON_TEST" HPC_reviewer_experiments/rx.py status E02
+"$RX_PYTHON_TEST" HPC_reviewer_experiments/rx.py status E04
+
+less "$RX_ROOT/E01/results/report.md"     # untrained encoder vs A_U/B_U/C_U/R
+less "$RX_ROOT/E02/results/report.md"     # variance shares: strategy vs pretraining seed vs cohort
+less "$RX_ROOT/E04/results/report.md"     # reproduction check, TOST, required sample size
+
+git pull --ff-only
+git log -1 --oneline        # should be your new commit

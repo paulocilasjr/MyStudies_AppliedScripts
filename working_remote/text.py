@@ -1,9 +1,33 @@
-Federated pretraining of a tumor–normal transcriptomic foundation model is statistically equivalent to centralized pretraining for immunotherapy response prediction
+The federated model's best result came from pretraining seed 17. Averaged over its three prediction heads, it reached AUPRC 0.439 and AUROC 0.596 with head-only fine-tuning. Across the five pretraining seeds, AUPRC had a standard deviation of 0.038 (variance 0.0014) and AUROC a standard deviation of 0.053 (variance 0.0028).
 
-Purpose: Transcriptomic foundation models (FMs) such as COMPASS can predict response to immune checkpoint blockade (ICB), but centralized pretraining requires pooling patient transcriptomes that institutions often cannot share. Federated learning trains at each site and shares only model updates. We tested whether federated pretraining preserves ICB prediction, learned representations and response-relevant biology, and used controls to find what limits performance.
+These numbers come from the core run's per-fit file, macro_metrics_by_seed.tsv. It reproduces the family means exactly (0.4123, 0.4001, 0.3996, and 0.4574 for published COMPASS), so it's the right source.
 
-Methods: We pretrained the COMPASS architecture from scratch on 15,672 genes without labels, teaching it to recognize each transcriptome after random gene masking or noise among other samples of the same tissue (contrastive learning). We used three strategies, five seeds each and equal sample exposures: federated, with 8,210 TCGA tumors and 19,616 GTEx normal tissues at two simulated sites (FedAvg); pooled centrally; and TCGA-only. We trained prediction heads (three seeds) on frozen encoders, holding out each of eight public ICB cohorts in turn (346 patients, 113 responders). Controls were published COMPASS and an untrained (random-weight) encoder. We report AUPRC (no-skill 0.368: random ranking) and AUROC with CIs from resampling cohorts and patients; equivalence by two one-sided tests (TOST), with a margin from published results only (±0.078, half of COMPASS's gain over no-skill); a mixed-model variance decomposition; representation similarity (CKA); and Shapley attributions over the model's immune and pathway concepts.
+Federated model, head-only fine-tuning (each seed is the mean of 3 heads)
 
-Results: Federated and pooled pretraining were equivalent (AUPRC 0.400 vs 0.400; difference −0.0005, 90% CI −0.036 to 0.033), even at half the margin (±0.039); dropping any cohort kept the difference between −0.010 and 0.009. Federated encoders were about as similar to same-seed pooled encoders as pooled seeds were to each other (CKA 0.71 vs 0.74 in ICB cohorts, 0.67 vs 0.66 in TCGA) and ranked response-driving concepts as consistently (Spearman 0.57 vs 0.53), despite higher validation loss (0.400 vs 0.231). TCGA-only pretraining scored 0.412. However, the untrained encoder reached 0.395, and no strategy exceeded it by more than 0.018 (all CIs included zero). Published COMPASS exceeded it (+0.063; patient-level 95% CI 0.009 to 0.110; AUROC 0.58 vs 0.53–0.56), yet nearly all of its advantage over federated pretraining came from 2 of 8 cohorts (gastric, glioblastoma). Held-out cohort explained 74% of AUPRC variance, pretraining seed 1.9% and strategy 0.1%; federated AUPRC ranged from 0.340 to 0.439 across seeds. Projector-plus-head fine-tuning also met the equivalence margin.
+Pretraining seed	AUPRC	AUROC
+17 (best)	0.439	0.596
+64	0.424	0.566
+42	0.404	0.530
+91	0.392	0.526
+24 (worst)	0.340	0.454
+Mean	0.400	0.534
+SD across seeds	0.038	0.053
+Variance across seeds	0.0014	0.0028
+Published COMPASS (reference)	0.457	0.584
+No-skill baseline	0.368	0.500
+Best single fit (one seed, one head): AUPRC 0.465 (seed 42 with fine-tuning seed 42) and AUROC 0.598 (seed 17). Across all 15 fits, the SD is 0.045 for AUPRC and 0.054 for AUROC.
+Worst seed: seed 24 is below no-skill on both metrics (AUROC 0.454 is below 0.5). Its three heads all landed between 0.335 and 0.344, so the problem is the pretrained encoder, not head noise.
+Projector-plus-head fine-tuning: the best seed was seed 42 (AUPRC 0.425) and seed 17 had the best AUROC (0.574). The best single fit reached AUPRC 0.467 and AUROC 0.593. Across seeds, the SD was 0.036 for AUPRC and 0.046 for AUROC, and seed 24 was again worst (0.339 and 0.460).
+Compared with the other two strategies (SD across the 5 seeds, head-only)
 
-Conclusions: Federated pretraining matched centralized pretraining in prediction, representations and response-relevant biology without exchanging transcriptomes. Untrained-encoder and multi-seed controls showed that the pretraining recipe, not federation, limits clinical value, and FM benchmarks should report both controls. Cancer centers could build shared FMs while keeping patient data local.
+TCGA-only	Pooled	Federated
+AUPRC SD	0.035	0.028	0.038
+AUROC SD	0.040	0.039	0.053
+Best seed AUPRC	0.464 (seed 42)	0.447 (seed 17)	0.439 (seed 17)
+Federated looks somewhat more sensitive to the seed. But with only 5 seeds per strategy, a variance ratio this size (about 1.8×) happens often by chance, so I wouldn't claim it.
+
+A pattern worth noticing
+
+Pooled and federated training rank the seeds almost identically: seed 17 is best and seed 24 worst in both. The rank correlation of the seed means is 0.9 (Spearman, n = 5; p ≈ 0.08, so suggestive only). Each pretraining seed seems to set roughly how good the encoder will be, and federation keeps that ranking. This fits the CKA result, where matching seeds made federated and pooled encoders more similar (0.71 vs 0.61 for different seeds).
+
+Don't headline the best seed or best fit in the abstract. The 0.465 single fit is higher than COMPASS's 0.457, but choosing the best of 15 fits after the fact is exactly the seed-selection problem the abstract warns about. COMPASS's 0.457 is an average of 3 heads, so the fair comparison is the 5-seed mean (0.400). The abstract already reports the seed range (0.340 to 0.439), which makes the same point honestly.

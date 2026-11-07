@@ -1,1 +1,15 @@
-https://goeckslab.github.io/galaxy-agent-benchmark/iwc/long-chain/index.html
+Agents as virtual users: a better interface between AI agents and the Galaxy workbench for biomedical analysis
+
+Background
+Artificial intelligence (AI) agents can analyze cancer data, but their ad hoc code on the researcher's computer is hard to inspect, reproduce or scale. Galaxy, an open workbench, records every tool, parameter and dataset and runs jobs on shared servers, but agents need an interface built for them. We used agents as virtual Galaxy users to measure what the combination achieves, find where the interface fails and test fixes.
+
+Methods
+Four large language models (GPT-5.5, GPT-5.6 Sol, GPT-5.6 Luna, DeepSeek V4 Pro) in the Codex harness performed 160 tasks from BixBench-Verified-50, CompBioBench and Intergalactic Workflow Commission (IWC) workflows, including tumor proteomics and single-cell analyses, in triplicate through a Galaxy Model Context Protocol (MCP) server or with custom code (3,840 runs); three models also ran 10 harder multi-step IWC analyses (180 runs). We classified failed runs and 7,098 failed Galaxy requests and measured tokens across interface versions. Codex (GPT-6) and Claude Code (Claude Opus 5.5) assisted result analysis.
+
+Results
+Galaxy-connected agents outscored agents writing their own code in 12 of 15 model–benchmark comparisons and trailed in 2: pooled, 89.5% vs 88.3% on BixBench (difference, 95% bootstrap interval −1.5 to 4.2), 87.0 vs 86.8 on CompBioBench, 99.0% vs 95.3% on IWC (0.8 to 7.3) and 67.5% vs 58.7% of results on multi-step analyses (−6.1 to 27.1; Galaxy-made references). All 1,920 Galaxy runs left a usegalaxy.org history linking the answer to its tools, parameters, data and any agent code; run traces flagged 77 runs for replacement, 71 for consulting earlier answers or references, and no comparison reversed. Wrong answers mostly reflected task-specification or missing-validation errors in both conditions (108 of 133 BixBench failures); only 6 Galaxy failures came from the platform or harness. Interface friction showed instead in earlier failed requests, including 1,339 job errors without a diagnostic, 1,121 tool lookups lacking history context and 981 parameter errors. Tokens were the main cost, 1.0- to 4.1-fold custom code across benchmarks; early traces located the excess in 2.66 times as many agent turns, each carrying 2.20 times the context. An MCP server that submits, waits and returns compact results cut GPT-5.5 Galaxy tokens 55%; for GPT-5.6 Sol, capped replies, parameter templates, pre-submission tool checks and longer job waits cut them a further 56%, to 1.5-fold custom code, with 137 of 150 answers accepted.
+
+Conclusions
+Combining AI agents with Galaxy matches or beats agents alone in accuracy and adds histories researchers can inspect and rerun. Agents as virtual users turn failures into measured interface fixes; next: actionable job diagnostics, history-aware tool lookup, output validation and complete multi-step analyses.
+
+Claude Code (Claude Opus 5.5) helped write this abstract; the authors verified all statements.

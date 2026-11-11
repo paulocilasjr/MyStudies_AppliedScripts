@@ -1,1 +1,1 @@
-We engineered the Galaxy interface specifically to bring token use in line with custom code. Replies are capped in length, parameters are supplied through templates, tool calls are validated before execution, and job wait times are extended. Together these changes cut GPT-5.6 Sol token use from a peak of 4.1-fold that of custom code to 1.5-fold, with no loss of accuracy (137 versus 136 of 150).
+.

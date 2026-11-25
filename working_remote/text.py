@@ -6,7 +6,17 @@ https://www.nature.com/articles/s41746-026-03423-6
 https://www.cell.com/cell-systems/abstract/S2405-4712(26)00240-1?_returnURL=https%3A%2F%2Flinkinghub.elsevier.com%2Fretrieve%2Fpii%2FS2405471226002401%3Fshowall%3Dtrue
 https://www.nature.com/articles/s41587-024-02534-3
 
+(base) 4475918@hpctpa3pl0001:federated-learning-model(main *)$ sacct -X -j 22457353,22457354 -o JobID,JobName%36,State%24,ExitCode,Elapsed
+JobID                                     JobName                    State ExitCode    Elapsed
+------------ ------------------------------------ ------------------------ -------- ----------
+22457353                 rx_E07_exposure-finalize                COMPLETED      0:0   00:02:55
+22457354                           rx_E07_analyze                COMPLETED      0:0   00:04:17
+(base) 4475918@hpctpa3pl0001:federated-learning-model(main *)$ qstat
+             JOBID PART         NAME     USER ST       TIME  TIME_LEFT NOD CPU TRES_PER_ MIN_ NODELIST(REASON)
+(base) 4475918@hpctpa3pl0001:federated-learning-model(main *)$ less "$RX_ROOT/E07/results/report.md"
 
+(base) 4475918@hpctpa3pl0001:federated-learning-model(main *)$
+(base) 4475918@hpctpa3pl0001:federated-learning-model(main *)$
 # E07: Normal tissue versus tumor exposure: matched-exposure run and budget sweep
 
 Generated 2026-11-25T01:32:16+00:00 from the frozen plan `plan.json`. Development evidence on exposed cohorts unless stated.
